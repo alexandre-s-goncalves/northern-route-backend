@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": ".NET Core Launch (web)",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "${workspaceFolder}/.vscode/run-swagger-dev.sh",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "PATH": "/usr/local/share/dotnet:${env:PATH}"
+            }
+        },
+        {
+            "name": "Swagger (Development)",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "${workspaceFolder}/.vscode/run-swagger-dev.sh",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "PATH": "/usr/local/share/dotnet:${env:PATH}"
+            }
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ]
+}
