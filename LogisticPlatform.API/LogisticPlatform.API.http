@@ -1,4 +1,4 @@
-@LogisticPlatform.API_HostAddress = http://localhost:5187
+@LogisticPlatform.API_HostAddress = http://localhost:5119
 
 GET {{LogisticPlatform.API_HostAddress}}/weatherforecast/
 Accept: application/json

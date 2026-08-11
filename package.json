@@ -1,0 +1,9 @@
+{
+  "name": "logistic-platform-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "dotnet watch run --project LogisticPlatform.API/LogisticPlatform.API.csproj --launch-profile https",
+    "build": "dotnet build"
+  }
+}

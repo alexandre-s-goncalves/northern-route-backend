@@ -1,48 +1,48 @@
+using LogisticPlatform.API.Common;
+using Scalar.AspNetCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-if (builder.Environment.IsDevelopment())
+builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddOpenApi(options =>
 {
-    builder.Services.AddOpenApi();
-    builder.Services.AddSwaggerGen();
-}
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info.Title = "NorthernRoute Logistics Platform API";
+        document.Info.Version = "v1.0.0";
+        document.Info.Description = "Enterprise offline-first logistics API engineered for remote supply chain synchronization using .NET 9 and PostgreSQL.";
+        document.Info.Contact = new Microsoft.OpenApi.Models.OpenApiContact
+        {
+            Name = "Alexandre Gonçalves",
+            Email = "alexandre.sgoncalves@outlook.com"
+        };
+        
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    app.MapGet("/", () => Results.Redirect("/swagger/index.html"));
+    app.MapScalarApiReference(options =>
+    {
+        options
+            .WithTitle("NorthernRoute Docs")
+            .WithTheme(ScalarTheme.DeepSpace)
+            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
 }
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
+app.MapGet("/api/health", () =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    var statusInfo = new { Status = "Online", Message = "Platform API is running successfully!" };
+    var result = ResultSchema<object>.Success(statusInfo);
+    return Results.Ok(result);
+});
 
 await app.RunAsync();
-
-public sealed record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
