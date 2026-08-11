@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug: .NET 9 API (HTTPS)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/LogisticPlatform.API/bin/Debug/net9.0/LogisticPlatform.API.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/LogisticPlatform.API",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s/scalar/v1"
+      }
+    },
+    {
+      "name": "Debug: Run xUnit Tests",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/LogisticPlatform.Tests/bin/Debug/net9.0/LogisticPlatform.Tests.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/LogisticPlatform.Tests",
+      "stopAtEntry": false
+    }
+  ]
+}

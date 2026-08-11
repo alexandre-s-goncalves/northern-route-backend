@@ -1,9 +1,15 @@
+using Microsoft.EntityFrameworkCore;
 using LogisticPlatform.API.Common;
+using LogisticPlatform.API.Common.Data;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddOpenApi(options =>
 {
@@ -27,6 +33,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    
     app.MapScalarApiReference(options =>
     {
         options
