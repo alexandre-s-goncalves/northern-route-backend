@@ -1,23 +1,25 @@
-using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace LogisticPlatform.API.Common;
 
-internal sealed class ResultSchema<T>
+public sealed class ResultSchema<T>
 {
-    public bool IsSuccess { get; }
-    public T? Data { get; }
-    public string? ErrorMessage { get; }
+    public bool IsSuccess { get; init; }
+    public string? ErrorMessage { get; init; }
+    public T? Data { get; init; }
 
-    private ResultSchema(bool isSuccess, T? data, string? errorMessage)
+    [JsonConstructor]
+    private ResultSchema()
     {
-        IsSuccess = isSuccess;
-        Data = data;
-        ErrorMessage = errorMessage;
     }
 
-    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types", Justification = "Standard Result Pattern factory methods.")]
-    public static ResultSchema<T> Success(T data) => new(true, data, null);
+    private ResultSchema(bool isSuccess, string? errorMessage, T? data)
+    {
+        IsSuccess = isSuccess;
+        ErrorMessage = errorMessage;
+        Data = data;
+    }
 
-    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types", Justification = "Standard Result Pattern factory methods.")]
-    public static ResultSchema<T> Failure(string errorMessage) => new(false, default, errorMessage);
+    public static ResultSchema<T> Success(T data) => new(true, null, data);
+    public static ResultSchema<T> Failure(string errorMessage) => new(false, errorMessage, default);
 }

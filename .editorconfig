@@ -65,3 +65,7 @@ dotnet_style_null_propagation = true:suggestion
 #### 6. SECURITY AND NULLABILITY PREFERENCES ####
 # Enables strict null reference checks to mitigate NullReferenceException
 dotnet_diagnostic.CA1062.severity = error
+
+# Disable code analysis and syntax rules for automatically generated migration files
+[**/Migrations/*.cs]
+generated_code = true

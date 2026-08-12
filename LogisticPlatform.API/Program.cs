@@ -1,3 +1,5 @@
+
+using DotNetEnv;
 using Microsoft.EntityFrameworkCore;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
@@ -5,11 +7,35 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Env.Load();
+builder.Configuration.AddEnvironmentVariables();
+
 builder.Services.AddEndpointsApiExplorer();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddEndpointsApiExplorer();
+
+var isInMemoryTest = builder.Configuration["UseInMemoryTestDatabase"] == "true";
+
+if (isInMemoryTest)
+{
+    builder.Services.AddDbContext<AppDbContext>();
+}
+else
+{
+    var connectionString = builder.Configuration["JWT_SECRET_KEY"] != null
+        ? builder.Configuration["DATABASE_URL"]
+        : builder.Configuration.GetConnectionString("DefaultConnection");
+
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.CommandTimeout(5);
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 2,
+                maxRetryDelay: TimeSpan.FromSeconds(2),
+                errorCodesToAdd: null);
+        }));
+}
 
 builder.Services.AddOpenApi(options =>
 {
@@ -23,7 +49,6 @@ builder.Services.AddOpenApi(options =>
             Name = "Alexandre Gonçalves",
             Email = "alexandre.sgoncalves@outlook.com"
         };
-        
         return Task.CompletedTask;
     });
 });
@@ -52,4 +77,11 @@ app.MapGet("/api/health", () =>
     return Results.Ok(result);
 });
 
+app.RegisterModules();
+
 await app.RunAsync();
+
+public partial class Program
+{
+    protected Program() { }
+}

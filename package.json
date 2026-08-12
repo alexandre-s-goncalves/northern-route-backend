@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "dotnet watch run --project LogisticPlatform.API/LogisticPlatform.API.csproj --launch-profile https",
-    "build": "dotnet build"
+    "build": "dotnet build",
+    "test:coverage": "rm -rf LogisticPlatform.Tests/TestResults && dotnet test --collect:\"XPlat Code Coverage\" --settings:LogisticPlatform.Tests/runsettings.xml || true && reportgenerator -reports:\"LogisticPlatform.Tests/TestResults/**/coverage.cobertura.xml\" -targetdir:\"LogisticPlatform.Tests/TestResults/CoverageReport\" -reporttypes:Html -classfilters:\"-*.Migrations.*;-*.IoC.*;-*.Common.*;-Program\" && open LogisticPlatform.Tests/TestResults/CoverageReport/index.html"
   }
 }
