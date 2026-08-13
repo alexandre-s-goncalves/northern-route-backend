@@ -4,10 +4,21 @@ using Microsoft.EntityFrameworkCore;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
 using Scalar.AspNetCore;
+using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-Env.Load();
+var environment = builder.Environment.EnvironmentName;
+
+var envFile = environment switch
+{
+    var env when env == Environments.Staging => ".env.qa",
+    var env when env == Environments.Production => ".env.prod",
+    _ => ".env"
+};
+
+Env.Load(envFile);
+
 builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.AddEndpointsApiExplorer();
