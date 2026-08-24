@@ -1,4 +1,5 @@
 {
+  "$schema": "https://github.io",
   "tasks": [
     {
       "args": ["format", "--verify-no-changes", "--severity", "info"],

@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LogisticPlatform.API.Common.Data;
+using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Features.Auth.Login.Contracts;
+using LogisticPlatform.API.Features.Auth.Login.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using LogisticPlatform.API.Common.Data;
-using LogisticPlatform.API.Common.Security;
-using LogisticPlatform.API.Features.Auth.Login.Contracts;
-using LogisticPlatform.API.Features.Auth.Login.Services;
 
 namespace LogisticPlatform.Tests;
 

@@ -1,0 +1,9 @@
+*.cache
+*.user
+*.userosscache
+*.suo
+bin/
+obj/
+TestResults/
+.config/
+.husky/_/
