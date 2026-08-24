@@ -1,0 +1,22 @@
+{
+  "tasks": [
+    {
+      "args": ["format", "--verify-no-changes", "--severity", "info"],
+      "command": "dotnet",
+      "group": "pre-commit",
+      "name": "Dotnet Format Guard"
+    },
+    {
+      "args": ["build", "--configuration", "Release"],
+      "command": "dotnet",
+      "group": "pre-push",
+      "name": "Dotnet Build Shield"
+    },
+    {
+      "args": ["test", "--configuration", "Release"],
+      "command": "dotnet",
+      "group": "pre-push",
+      "name": "Dotnet Test Matrix"
+    }
+  ]
+}
