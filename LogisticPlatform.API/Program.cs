@@ -1,13 +1,14 @@
-
 using DotNetEnv;
-using Microsoft.EntityFrameworkCore;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
-using Scalar.AspNetCore;
+using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Features.Auth.Login.Contracts;
+using LogisticPlatform.API.Features.Auth.Login.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-
 var environment = builder.Environment.EnvironmentName;
 
 var envFile = environment switch
@@ -20,9 +21,6 @@ var envFile = environment switch
 Env.Load(envFile);
 
 builder.Configuration.AddEnvironmentVariables();
-
-builder.Services.AddEndpointsApiExplorer();
-
 builder.Services.AddEndpointsApiExplorer();
 
 var isInMemoryTest = builder.Configuration["UseInMemoryTestDatabase"] == "true";
@@ -48,6 +46,9 @@ else
         }));
 }
 
+builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((document, context, cancellationToken) =>
@@ -69,7 +70,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    
+
     app.MapScalarApiReference(options =>
     {
         options
