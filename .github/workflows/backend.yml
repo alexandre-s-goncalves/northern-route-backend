@@ -29,7 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Setup Dotnet Execution Environment
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
       - name: Install Dotnet Format Tool Suite
@@ -42,7 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Setup Dotnet Execution Environment
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
       - name: Restore Application Dependencies
@@ -55,16 +57,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - name: Setup Dotnet Execution Environment
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
       - name: Run Test Suites with Coverage Collection
-        run: dotnet test --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov /p:CoverletOutput=./coverage/lcov.info
+        run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
       - name: Upload Telemetry Coverage Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: '**/coverage/'
+          path: TestResults/**/coverage.cobertura.xml
 
   sonar-cloud:
     needs: unit-tests
@@ -80,15 +83,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: coverage/
+          path: TestResults
       - name: SonarCloud Scan Execution
         uses: SonarSource/sonarcloud-github-action@v3
         with:
           args: >
+            -Dsonar.cs.vscoveragexml.reportsPaths=TestResults/**/coverage.cobertura.xml
             -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
-            -Dsonar.cs.opencover.reportsPaths=**/coverage/lcov.info
+            -Dsonar.organization=alexandre-s-goncalves
             -Dsonar.projectKey=northern-route-backend
-            -Dsonar.projectName="NorthernRoute Backend"
+            -Dsonar.projectName=NorthernRouteBackend
             -Dsonar.projectVersion=1.0.0
             -Dsonar.sources=LogisticPlatform.API
         env:

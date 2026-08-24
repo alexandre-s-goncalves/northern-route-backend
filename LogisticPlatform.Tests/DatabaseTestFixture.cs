@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using LogisticPlatform.API.Common.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using LogisticPlatform.API.Common.Data;
 using Xunit;
 
 namespace LogisticPlatform.Tests;

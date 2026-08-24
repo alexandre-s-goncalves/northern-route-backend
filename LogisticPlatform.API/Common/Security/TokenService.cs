@@ -1,9 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using LogisticPlatform.API.Common.Domain;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
-using LogisticPlatform.API.Common.Domain;
 
 namespace LogisticPlatform.API.Common.Security;
 

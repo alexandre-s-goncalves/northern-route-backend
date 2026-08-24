@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Schemas;
+using Microsoft.EntityFrameworkCore;
 
 namespace LogisticPlatform.API.Features.Auth.Login.Services;
 

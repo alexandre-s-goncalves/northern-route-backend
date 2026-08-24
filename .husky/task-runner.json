@@ -1,4 +1,5 @@
 {
+  "$schema": "https://github.io",
   "tasks": [
     {
       "args": ["format", "--verify-no-changes", "--severity", "info"],
@@ -7,15 +8,15 @@
       "name": "Dotnet Format Guard"
     },
     {
-      "args": ["build", "--configuration", "Release"],
+      "args": ["build", "--configuration", "Release", "--no-incremental"],
       "command": "dotnet",
-      "group": "pre-push",
-      "name": "Dotnet Build Shield"
+      "group": "pre-commit",
+      "name": "Dotnet Full Compilation Shield"
     },
     {
       "args": ["test", "--configuration", "Release"],
       "command": "dotnet",
-      "group": "pre-push",
+      "group": "pre-commit",
       "name": "Dotnet Test Matrix"
     }
   ]

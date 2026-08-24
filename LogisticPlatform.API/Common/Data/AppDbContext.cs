@@ -1,16 +1,12 @@
-using Microsoft.EntityFrameworkCore;
 using LogisticPlatform.API.Common.Domain;
+using Microsoft.EntityFrameworkCore;
 
 namespace LogisticPlatform.API.Common.Data;
 
-internal sealed class AppDbContext : DbContext
+internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
-    }
-
-    public DbSet<User> Users { get; set; }
-    public DbSet<Role> Roles { get; set; }
+    public DbSet<Role> Roles { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,7 +29,7 @@ internal sealed class AppDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(150);
             entity.Property(e => e.PasswordHash).IsRequired();
-            
+
             entity.HasIndex(e => e.Email).IsUnique();
             entity.HasOne(e => e.Role)
                   .WithMany()

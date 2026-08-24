@@ -2,16 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Schemas;
 using LogisticPlatform.API.Features.Auth.Login.Services;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
-
 using ApiResult = LogisticPlatform.API.Common.ResultSchema<LogisticPlatform.API.Features.Auth.Login.Schemas.LoginResponseSchema>;
 
 namespace LogisticPlatform.Tests.Features.Auth.Login;
