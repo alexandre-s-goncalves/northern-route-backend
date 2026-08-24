@@ -26,3 +26,5 @@ ENV ASPNETCORE_URLS=http://+:10000
 EXPOSE 10000
 
 ENTRYPOINT ["dotnet", "LogisticPlatform.API.dll"]
+
+# Target route mirror configuration sync execution v3
