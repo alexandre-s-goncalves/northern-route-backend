@@ -71,11 +71,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Java 21 Runtime Environment
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
       - name: Download Coverage Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -85,8 +80,9 @@ jobs:
         uses: SonarSource/sonarcloud-github-action@v3
         with:
           args: >
-            -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
             -Dsonar.cs.opencover.reportsPaths=LogisticPlatform.Tests/coverage/lcov.info
+            -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
+            -Dsonar.organization=alexandre-s-goncalves
             -Dsonar.projectKey=northern-route-backend
             -Dsonar.projectName="NorthernRoute Backend"
             -Dsonar.projectVersion=1.0.0
