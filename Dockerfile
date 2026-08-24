@@ -22,9 +22,8 @@ WORKDIR /app
 COPY --from=build-env /app/out .
 
 ENV ASPNETCORE_URLS=http://+:10000
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 
 EXPOSE 10000
 
 ENTRYPOINT ["dotnet", "LogisticPlatform.API.dll"]
-
-# Target route mirror configuration sync execution v3
