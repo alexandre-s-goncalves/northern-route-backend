@@ -64,7 +64,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: '**/coverage/'
+          path: LogisticPlatform.Tests/coverage/lcov.info
 
   sonar-cloud:
     needs: unit-tests
@@ -80,13 +80,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: coverage/
+          path: LogisticPlatform.Tests/coverage/
       - name: SonarCloud Scan Execution
         uses: SonarSource/sonarcloud-github-action@v3
         with:
           args: >
             -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
-            -Dsonar.cs.opencover.reportsPaths=**/coverage/lcov.info
+            -Dsonar.cs.opencover.reportsPaths=LogisticPlatform.Tests/coverage/lcov.info
             -Dsonar.projectKey=northern-route-backend
             -Dsonar.projectName="NorthernRoute Backend"
             -Dsonar.projectVersion=1.0.0

@@ -1,5 +1,4 @@
 {
-  "$schema": "https://github.io",
   "tasks": [
     {
       "args": ["format", "--verify-no-changes", "--severity", "info"],
@@ -10,13 +9,13 @@
     {
       "args": ["build", "--configuration", "Release"],
       "command": "dotnet",
-      "group": "pre-push",
+      "group": "pre-commit",
       "name": "Dotnet Build Shield"
     },
     {
       "args": ["test", "--configuration", "Release"],
       "command": "dotnet",
-      "group": "pre-push",
+      "group": "pre-commit",
       "name": "Dotnet Test Matrix"
     }
   ]
