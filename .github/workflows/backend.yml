@@ -62,14 +62,12 @@ jobs:
         with:
           dotnet-version: '9.0.x'
       - name: Run Test Suites with Coverage Collection
-        run: dotnet test --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov
+        run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
       - name: Upload Telemetry Coverage Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: |
-            **/coverage/lcov.info
-            **/*.info
+          path: TestResults/**/coverage.cobertura.xml
 
   sonar-cloud:
     needs: unit-tests
@@ -85,12 +83,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: coverage-artifacts
+          path: TestResults
       - name: SonarCloud Scan Execution
         uses: SonarSource/sonarcloud-github-action@v3
         with:
           args: >
-            -Dsonar.cs.opencover.reportsPaths=**/lcov.info
+            -Dsonar.cs.vscoveragexml.reportsPaths=TestResults/**/coverage.cobertura.xml
             -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
             -Dsonar.organization=alexandre-s-goncalves
             -Dsonar.projectKey=northern-route-backend
