@@ -92,7 +92,7 @@ jobs:
             -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
             -Dsonar.organization=alexandre-s-goncalves
             -Dsonar.projectKey=northern-route-backend
-            -Dsonar.projectName="NorthernRoute Backend"
+            -Dsonar.projectName=NorthernRouteBackend
             -Dsonar.projectVersion=1.0.0
             -Dsonar.sources=LogisticPlatform.API
         env:
