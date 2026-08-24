@@ -85,7 +85,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dotnet-lcov-report
-          path: coverage-artifacts/
+          path: coverage-artifacts
       - name: SonarCloud Scan Execution
         uses: SonarSource/sonarcloud-github-action@v3
         with:
