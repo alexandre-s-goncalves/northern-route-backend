@@ -21,6 +21,21 @@ var envFile = environment switch
 Env.Load(envFile);
 
 builder.Configuration.AddEnvironmentVariables();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPlatformPolicy", policy =>
+    {
+        var allowedOriginsSetting = builder.Configuration["ALLOWED_ORIGINS"] ?? string.Empty;
+        var origins = allowedOriginsSetting.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        policy.WithOrigins(origins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .SetIsOriginAllowedToAllowWildcardSubdomains();
+    });
+});
+
 builder.Services.AddEndpointsApiExplorer();
 
 var isInMemoryTest = builder.Configuration["UseInMemoryTestDatabase"] == "true";
@@ -67,18 +82,20 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
+app.UseCors("CorsPlatformPolicy");
 
-    app.MapScalarApiReference(options =>
+app.Use((context, next) =>
+{
+    if (context.Request.Method == "OPTIONS")
     {
-        options
-            .WithTitle("NorthernRoute Docs")
-            .WithTheme(ScalarTheme.DeepSpace)
-            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-    });
-}
+        context.Response.Headers.Append("Access-Control-Allow-Origin", context.Request.Headers.Origin);
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "DELETE, GET, OPTIONS, PATCH, POST, PUT");
+        context.Response.StatusCode = 200;
+        return Task.CompletedTask;
+    }
+    return next();
+});
 
 app.UseHttpsRedirection();
 

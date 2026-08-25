@@ -1,9 +1,10 @@
 *.cache
+*.suo
 *.user
 *.userosscache
-*.suo
+.config/
+.env
+.husky/_/
 bin/
 obj/
 TestResults/
-.config/
-.husky/_/
