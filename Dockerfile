@@ -1,29 +1,15 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+COPY ["LogisticPlatform.API/LogisticPlatform.API.csproj", "LogisticPlatform.API/"]
+RUN dotnet restore "LogisticPlatform.API/LogisticPlatform.API.csproj"
+COPY . .
+WORKDIR "/src/LogisticPlatform.API"
+RUN dotnet publish "LogisticPlatform.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
-
-COPY *.sln ./
-COPY LogisticPlatform.API/*.csproj ./LogisticPlatform.API/
-COPY LogisticPlatform.Tests/*.csproj ./LogisticPlatform.Tests/
-
-RUN dotnet restore
-
-COPY . ./
-
-RUN dotnet publish LogisticPlatform.API/LogisticPlatform.API.csproj \
-    -c Release \
-    -o /app/out \
-    --no-restore
-
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
-
-WORKDIR /app
-
-COPY --from=build-env /app/out .
-
-ENV ASPNETCORE_URLS=http://+:10000
-ENV DOTNET_USE_POLLING_FILE_WATCHER=true
-
-EXPOSE 10000
-
+COPY --from=build /app/publish .
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
+USER app
 ENTRYPOINT ["dotnet", "LogisticPlatform.API.dll"]
