@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LogisticPlatform.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260904183003_MakeAuditUserIdNullableMatrix")]
-    partial class MakeAuditUserIdNullableMatrix
+    [Migration("20260904183735_AppendStagingNullableAuditsMatrix")]
+    partial class AppendStagingNullableAuditsMatrix
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace LogisticPlatform.API.Migrations
 {
     /// <inheritdoc />
-    public partial class MakeAuditUserIdNullableMatrix : Migration
+    public partial class AppendStagingNullableAuditsMatrix : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
