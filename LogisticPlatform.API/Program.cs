@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
+using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
-using LogisticPlatform.API.Features.Auth.Login.Schemas;
 using LogisticPlatform.API.Features.Auth.Login.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -74,14 +74,12 @@ if (!app.Environment.IsEnvironment("Testing"))
     await dbContext.Database.MigrateAsync();
 }
 
-app.MapPost("/api/auth/login", async (
-    LoginRequestSchema request,
-    ILoginService loginService,
-    System.Threading.CancellationToken cancellationToken) =>
-{
-    var result = await loginService.ExecuteAsync(request, cancellationToken);
-    return !result.IsSuccess ? Results.BadRequest(result) : Results.Ok(result);
-});
+app.RegisterModules();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
+    .WithName("Health_Check")
+    .WithSummary("Checks whether the API is running")
+    .Produces(StatusCodes.Status200OK);
 
 await app.RunAsync();
 
