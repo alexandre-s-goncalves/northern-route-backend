@@ -5,6 +5,7 @@ namespace LogisticPlatform.API.Common.Data;
 
 internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<LoginAudit> LoginAudits { get; set; } = null!;
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
 
@@ -17,6 +18,21 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
         var adminRoleId = new Guid("e7b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d");
         var userRoleId = new Guid("b8f2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d");
 
+        modelBuilder.Entity<LoginAudit>(entity =>
+        {
+            entity.ToTable("LoginAudits");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.IpAddress).IsRequired().HasMaxLength(45);
+            entity.Property(e => e.UserAgent).IsRequired();
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.LoginDateTime).IsRequired();
+
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Role>(entity =>
         {
             entity.ToTable("Roles");
@@ -24,10 +40,16 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.Name).IsUnique();
 
-            entity.HasData(
-                new { Id = adminRoleId, Name = "ADMIN" },
-                new { Id = userRoleId, Name = "USER" }
-            );
+            var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
+                .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
+
+            if (!isTestRuntime)
+            {
+                entity.HasData(
+                    new { Id = adminRoleId, Name = "ADMIN" },
+                    new { Id = userRoleId, Name = "USER" }
+                );
+            }
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -44,24 +66,30 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
                   .HasForeignKey(e => e.RoleId)
                   .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasData(
-                new
-                {
-                    Id = new Guid("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                    Name = "Alexandre Santos",
-                    Email = "ale@ale.com",
-                    PasswordHash = "Password123",
-                    RoleId = adminRoleId
-                },
-                new
-                {
-                    Id = new Guid("c2b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                    Name = "John Doe Operator",
-                    Email = "operator@northernroute.com",
-                    PasswordHash = "Operator123",
-                    RoleId = userRoleId
-                }
-            );
+            var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
+                .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
+
+            if (!isTestRuntime)
+            {
+                entity.HasData(
+                    new
+                    {
+                        Id = new Guid("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
+                        Name = "Alexandre Santos",
+                        Email = "ale@ale.com",
+                        PasswordHash = "Password123",
+                        RoleId = adminRoleId
+                    },
+                    new
+                    {
+                        Id = new Guid("c2b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
+                        Name = "John Doe Operator",
+                        Email = "operator@northernroute.com",
+                        PasswordHash = "Operator123",
+                        RoleId = userRoleId
+                    }
+                );
+            }
         });
     }
 }

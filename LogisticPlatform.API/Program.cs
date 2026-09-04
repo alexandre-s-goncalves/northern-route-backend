@@ -20,7 +20,7 @@ var envFile = environment switch
 Env.Load(envFile);
 
 builder.Configuration.AddEnvironmentVariables();
-
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPlatformPolicy", policy =>
