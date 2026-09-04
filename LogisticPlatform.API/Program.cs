@@ -82,6 +82,13 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
+
 app.UseCors("CorsPlatformPolicy");
 
 app.Use((context, next) =>
