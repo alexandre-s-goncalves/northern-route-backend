@@ -1,39 +1,22 @@
-using DotNetEnv;
-using LogisticPlatform.API.Common;
+using System;
+using System.Linq;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
+using LogisticPlatform.API.Features.Auth.Login.Schemas;
 using LogisticPlatform.API.Features.Auth.Login.Services;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Scalar.AspNetCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
-var environment = builder.Environment.EnvironmentName;
 
-var envFile = environment switch
-{
-    var env when env == Environments.Staging => ".env.qa",
-    var env when env == Environments.Production => ".env.prod",
-    _ => ".env"
-};
-
-Env.Load(envFile);
-
-builder.Configuration.AddEnvironmentVariables();
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("CorsPlatformPolicy", policy =>
-    {
-        var allowedOriginsSetting = builder.Configuration["ALLOWED_ORIGINS"] ?? string.Empty;
-        var origins = allowedOriginsSetting.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-        policy.WithOrigins(origins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .SetIsOriginAllowedToAllowWildcardSubdomains();
-    });
-});
 
 builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -62,25 +45,27 @@ builder.Services.AddDbContext<AppDbContext>(options =>
                 errorCodesToAdd: null);
         });
     }
+
+    options.ConfigureWarnings(warnings => warnings.Ignore(
+        Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 
-builder.Services.AddOpenApi(options =>
+var allowedOriginsSetting = builder.Configuration["ALLOWED_ORIGINS"] ?? string.Empty;
+var allowedOrigins = allowedOriginsSetting.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+builder.Services.AddCors(options =>
 {
-    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    options.AddDefaultPolicy(policy =>
     {
-        document.Info.Title = "NorthernRoute Logistics Platform API";
-        document.Info.Version = "v1.0.0";
-        document.Info.Description = "Enterprise offline-first logistics API engineered for remote supply chain synchronization using .NET 9 and PostgreSQL.";
-        document.Info.Contact = new Microsoft.OpenApi.Models.OpenApiContact
-        {
-            Name = "Alexandre Gonçalves",
-            Email = "alexandre.sgoncalves@outlook.com"
-        };
-        return Task.CompletedTask;
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
 var app = builder.Build();
+
+app.UseCors();
 
 if (!app.Environment.IsEnvironment("Testing"))
 {
@@ -89,43 +74,14 @@ if (!app.Environment.IsEnvironment("Testing"))
     await dbContext.Database.MigrateAsync();
 }
 
-app.UseCors("CorsPlatformPolicy");
-
-app.Use((context, next) =>
+app.MapPost("/api/auth/login", async (
+    LoginRequestSchema request,
+    ILoginService loginService,
+    System.Threading.CancellationToken cancellationToken) =>
 {
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.Headers.Append("Access-Control-Allow-Origin", context.Request.Headers.Origin);
-        context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-        context.Response.Headers.Append("Access-Control-Allow-Methods", "DELETE, GET, OPTIONS, PATCH, POST, PUT");
-        context.Response.StatusCode = 200;
-        return Task.CompletedTask;
-    }
-    return next();
+    var result = await loginService.ExecuteAsync(request, cancellationToken);
+    return !result.IsSuccess ? Results.BadRequest(result) : Results.Ok(result);
 });
-
-if (!app.Environment.IsEnvironment("Testing"))
-{
-    app.UseHttpsRedirection();
-}
-
-app.MapOpenApi();
-app.MapScalarApiReference(options =>
-{
-    options
-        .WithTitle("NorthernRoute Docs")
-        .WithTheme(ScalarTheme.DeepSpace)
-        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-});
-
-app.MapGet("/api/health", () =>
-{
-    var statusInfo = new { Status = "Online", Message = "Platform API is running successfully!" };
-    var result = ResultSchema<object>.Success(statusInfo);
-    return Results.Ok(result);
-});
-
-app.RegisterModules();
 
 await app.RunAsync();
 
