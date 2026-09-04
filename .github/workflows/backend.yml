@@ -52,49 +52,55 @@ jobs:
       - name: Compile Backend Assembly Solutions
         run: dotnet build --configuration Release --no-restore
 
-  unit-tests:
+  unit-tests-and-sonar:
     needs: compile-matrix
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Dotnet Execution Environment
-        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '9.0.x'
-      - name: Run Test Suites with Coverage Collection
-        run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
-      - name: Upload Telemetry Coverage Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dotnet-lcov-report
-          path: TestResults/**/coverage.cobertura.xml
+          fetch-depth: 0
 
-  sonar-cloud:
-    needs: unit-tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: Set up Java 21 Runtime Environment
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
-      - name: Download Coverage Artifacts
-        uses: actions/download-artifact@v4
+
+      - name: Setup Dotnet Execution Environment
+        uses: actions/setup-dotnet@v4
         with:
-          name: dotnet-lcov-report
-          path: TestResults
-      - name: SonarCloud Scan Execution
-        uses: SonarSource/sonarcloud-github-action@v3
-        with:
-          args: >
-            -Dsonar.cs.vscoveragexml.reportsPaths=TestResults/**/coverage.cobertura.xml
-            -Dsonar.exclusions=**/Migrations/**,**/mocks/**,**/*.Tests/**
-            -Dsonar.organization=alexandre-s-goncalves
-            -Dsonar.projectKey=northern-route-backend
-            -Dsonar.projectName=NorthernRouteBackend
-            -Dsonar.projectVersion=1.0.0
-            -Dsonar.sources=LogisticPlatform.API
+          dotnet-version: '9.0.x'
+
+      - name: Install SonarScanner Global Tool Suite
+        run: |
+          dotnet tool install -g dotnet-sonarscanner
+
+      - name: Initiate SonarCloud Analysis Scanner Matrix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet-sonarscanner begin \
+            /k:"northern-route-backend" \
+            /o:"alexandre-s-goncalves" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.cs.vscoveragexml.reportsPaths="TestResults/**/coverage.cobertura.xml" \
+            /d:sonar.exclusions="**/Migrations/**,**/mocks/**,**/*.Tests/**" \
+            /d:sonar.sources="LogisticPlatform.API"
+
+      - name: Recompile Assembly for Profile Extraction
+        run: dotnet build --configuration Release
+
+      - name: Run Test Suites with Coverage Collection
+        run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
+
+      - name: Conclude and Transmit SonarCloud Analysis Package
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
