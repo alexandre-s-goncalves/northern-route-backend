@@ -1,5 +1,6 @@
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
+using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Schemas;
@@ -13,11 +14,27 @@ internal sealed class LoginService(AppDbContext context, ITokenService tokenServ
         LoginRequestSchema request,
         CancellationToken cancellationToken)
     {
-        var user = await context.Users
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u =>
-                string.Equals(u.Email, request.Email, StringComparison.OrdinalIgnoreCase),
+        var users = context.Users.Include(u => u.Role);
+        User? user;
+
+        if (context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+        {
+            user = null;
+            await foreach (var candidate in users.AsAsyncEnumerable().WithCancellation(cancellationToken))
+            {
+                if (string.Equals(candidate.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    user = candidate;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            user = await users.FirstOrDefaultAsync(
+                u => EF.Functions.ILike(u.Email, request.Email),
                 cancellationToken);
+        }
 
         if (user is null)
         {

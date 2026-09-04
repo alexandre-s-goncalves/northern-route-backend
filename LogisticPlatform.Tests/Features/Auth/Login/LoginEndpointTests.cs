@@ -28,50 +28,32 @@ public sealed class LoginEndpointTests : IClassFixture<WebTestFixture>
     [Fact(DisplayName = "Auth - Login Endpoint: Should return HTTP 200 OK with valid JWT when credentials are perfect")]
     public async Task Login_ShouldReturnOk_WhenCredentialsAreValid()
     {
-        // Arrange 
+        var email = $"driver_{Guid.NewGuid().ToString()[..8]}@northernroute.com";
+        var password = "SecurePassword123";
+
         using (var scope = _factory.Services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-            var existingUser = await context.Users
-                .FirstOrDefaultAsync(u => u.Email == "driver@northernroute.com");
+            var mockRole = new Role($"DRIVER_{Guid.NewGuid().ToString()[..4]}");
+            context.Roles.Add(mockRole);
+            await context.SaveChangesAsync();
 
-            if (existingUser is null)
-            {
-                var defaultRole = await context.Roles.FirstOrDefaultAsync();
-                Guid roleId;
+            var testUser = new User(
+                "Alexandre Santos",
+                email,
+                password,
+                mockRole.Id
+            );
 
-                if (defaultRole is null)
-                {
-                    var mockRole = new Role("DRIVER");
-                    context.Roles.Add(mockRole);
-                    await context.SaveChangesAsync();
-
-                    roleId = mockRole.Id;
-                }
-                else
-                {
-                    roleId = defaultRole.Id;
-                }
-
-                var testUser = new User(
-                    "Alexandre Santos",
-                    "driver@northernroute.com",
-                    "SecurePassword123",
-                    roleId
-                );
-
-                context.Users.Add(testUser);
-                await context.SaveChangesAsync();
-            }
+            context.Users.Add(testUser);
+            await context.SaveChangesAsync();
         }
 
-        var requestPayload = new LoginRequestSchema("driver@northernroute.com", "SecurePassword123");
+        var requestPayload = new LoginRequestSchema(email, password);
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/auth/login", requestPayload);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var resultBody = await response.Content.ReadFromJsonAsync<ApiResult>();
@@ -85,13 +67,13 @@ public sealed class LoginEndpointTests : IClassFixture<WebTestFixture>
     [Fact(DisplayName = "Auth - Login Endpoint: Should return HTTP 400 BadRequest when credentials are completely invalid")]
     public async Task Login_ShouldReturnBadRequest_WhenCredentialsAreInvalid()
     {
-        // Arrange
-        var requestPayload = new LoginRequestSchema("invalid-driver@northernroute.com", "WrongPassword123");
+        var email = $"invalid_driver_{Guid.NewGuid().ToString()[..8]}@northernroute.com";
+        var password = "WrongPassword123";
 
-        // Act
+        var requestPayload = new LoginRequestSchema(email, password);
+
         var response = await _client.PostAsJsonAsync("/api/auth/login", requestPayload);
 
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
 
         var resultBody = await response.Content.ReadFromJsonAsync<ApiResult>();

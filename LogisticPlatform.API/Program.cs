@@ -5,7 +5,6 @@ using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,21 +35,24 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
 
-var isInMemoryTest = builder.Configuration["UseInMemoryTestDatabase"] == "true";
+var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
+    .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
 
-if (isInMemoryTest)
+builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    builder.Services.AddDbContext<AppDbContext>();
-}
-else
-{
-    var connectionString = builder.Configuration["JWT_SECRET_KEY"] != null
-        ? builder.Configuration["DATABASE_URL"]
-        : builder.Configuration.GetConnectionString("DefaultConnection");
+    if (isTestRuntime)
+    {
+        options.UseNpgsql("Host=localhost;Database=logistic_platform_test_stub;Username=postgres;Password=test");
+    }
+    else
+    {
+        var connectionString = builder.Configuration["JWT_SECRET_KEY"] != null
+            ? builder.Configuration["DATABASE_URL"]
+            : builder.Configuration.GetConnectionString("DefaultConnection");
 
-    builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseNpgsql(connectionString, npgsqlOptions =>
         {
             npgsqlOptions.CommandTimeout(5);
@@ -58,11 +60,9 @@ else
                 maxRetryCount: 2,
                 maxRetryDelay: TimeSpan.FromSeconds(2),
                 errorCodesToAdd: null);
-        }));
-}
-
-builder.Services.AddScoped<ILoginService, LoginService>();
-builder.Services.AddScoped<ITokenService, TokenService>();
+        });
+    }
+});
 
 builder.Services.AddOpenApi(options =>
 {
@@ -97,7 +97,19 @@ app.Use((context, next) =>
     return next();
 });
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
+
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
+{
+    options
+        .WithTitle("NorthernRoute Docs")
+        .WithTheme(ScalarTheme.DeepSpace)
+        .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+});
 
 app.MapGet("/api/health", () =>
 {
