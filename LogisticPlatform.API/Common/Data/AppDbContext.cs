@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using LogisticPlatform.API.Common.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -40,10 +42,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.Name).IsUnique();
 
-            var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
-                .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
-
-            if (!isTestRuntime)
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
             {
                 entity.HasData(
                     new { Id = adminRoleId, Name = "ADMIN" },
@@ -66,10 +66,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
                   .HasForeignKey(e => e.RoleId)
                   .OnDelete(DeleteBehavior.Restrict);
 
-            var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
-                .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
-
-            if (!isTestRuntime)
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
             {
                 entity.HasData(
                     new
