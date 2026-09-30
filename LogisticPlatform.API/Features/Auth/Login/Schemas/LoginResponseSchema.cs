@@ -8,5 +8,6 @@ public sealed record LoginResponseSchema(
     string Email,
     string Role,
     string Token,
+    string RefreshToken,
     Guid DeviceSessionId
 );
