@@ -17,6 +17,7 @@ internal sealed class LoginService(
     AppDbContext context,
     IDeviceDetectorService deviceDetectorService,
     IHttpContextAccessor httpContextAccessor,
+    IRefreshTokenService refreshTokenService,
     ITokenService tokenService) : ILoginService
 {
     public async Task<ResultSchema<LoginResponseSchema>> ExecuteAsync(
@@ -80,14 +81,21 @@ internal sealed class LoginService(
         context.LoginAudits.Add(successAudit);
         await context.SaveChangesAsync(cancellationToken);
 
-        var generatedToken = tokenService.GenerateToken(user);
+        var accessToken = tokenService.GenerateToken(user);
+        var refreshToken = string.Empty;
+
+        if (deviceSessionId.HasValue)
+        {
+            refreshToken = await refreshTokenService.CreateTokenAsync(user.Id, deviceSessionId.Value, cancellationToken);
+        }
 
         var response = new LoginResponseSchema(
             user.Id,
             user.Name,
             user.Email,
             user.Role?.Name ?? "USER",
-            generatedToken,
+            accessToken,
+            refreshToken,
             deviceSessionId ?? Guid.Empty
         );
 
