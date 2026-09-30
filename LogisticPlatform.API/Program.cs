@@ -21,6 +21,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDeviceDetectorService, DeviceDetectorService>();
+builder.Services.AddHttpContextAccessor();
 
 var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
     .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));

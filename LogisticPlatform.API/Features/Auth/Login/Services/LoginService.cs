@@ -15,6 +15,7 @@ namespace LogisticPlatform.API.Features.Auth.Login.Services;
 
 internal sealed class LoginService(
     AppDbContext context,
+    IDeviceDetectorService deviceDetectorService,
     IHttpContextAccessor httpContextAccessor,
     ITokenService tokenService) : ILoginService
 {
@@ -66,7 +67,16 @@ internal sealed class LoginService(
             return ResultSchema<LoginResponseSchema>.Failure("Invalid credentials.");
         }
 
-        var successAudit = new LoginAudit(user.Id, null, ipAddress, userAgent, "SUCCESS");
+        Guid? deviceSessionId = null;
+
+        if (httpContext is not null)
+        {
+            var deviceSession = deviceDetectorService.ResolveDeviceDetails(httpContext, user.Id);
+            context.UserDeviceSessions.Add(deviceSession);
+            deviceSessionId = deviceSession.Id;
+        }
+
+        var successAudit = new LoginAudit(user.Id, deviceSessionId, ipAddress, userAgent, "SUCCESS");
         context.LoginAudits.Add(successAudit);
         await context.SaveChangesAsync(cancellationToken);
 
@@ -77,7 +87,8 @@ internal sealed class LoginService(
             user.Name,
             user.Email,
             user.Role?.Name ?? "USER",
-            generatedToken
+            generatedToken,
+            deviceSessionId ?? Guid.Empty
         );
 
         return ResultSchema<LoginResponseSchema>.Success(response);

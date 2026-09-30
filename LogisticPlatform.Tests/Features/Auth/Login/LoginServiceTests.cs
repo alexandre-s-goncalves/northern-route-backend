@@ -17,11 +17,14 @@ namespace LogisticPlatform.Tests.Features.Auth.Login;
 
 public sealed class LoginServiceTests
 {
+    private readonly IDeviceDetectorService _deviceDetectorService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITokenService _tokenService;
 
     public LoginServiceTests()
     {
+        _deviceDetectorService = new DeviceDetectorService();
+
         var inMemorySettings = new Dictionary<string, string?>
         {
             { "JWT_SECRET_KEY", "SuperSecretSecureKeyForNorthernRouteLogistics2026" }
@@ -63,7 +66,7 @@ public sealed class LoginServiceTests
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _httpContextAccessor, _tokenService);
+        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _tokenService);
         var request = new LoginRequestSchema("driver@test.com", "WrongPassword123");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -87,7 +90,7 @@ public sealed class LoginServiceTests
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _httpContextAccessor, _tokenService);
+        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _tokenService);
         var request = new LoginRequestSchema("admin@test.com", "SecurePassword789");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -107,7 +110,7 @@ public sealed class LoginServiceTests
         var options = CreateNewInMemoryDatabaseOptions();
         using var context = new AppDbContext(options);
 
-        var loginService = new LoginService(context, _httpContextAccessor, _tokenService);
+        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _tokenService);
         var request = new LoginRequestSchema("unknown@logistics.com", "AnyPassword");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -123,7 +126,7 @@ public sealed class LoginServiceTests
         var options = CreateNewInMemoryDatabaseOptions();
         using var context = new AppDbContext(options);
 
-        var loginService = new LoginService(context, _httpContextAccessor, _tokenService);
+        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _tokenService);
         var request = new LoginRequestSchema("non-existent@northernroute.com", "Password123");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -147,7 +150,7 @@ public sealed class LoginServiceTests
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _httpContextAccessor, _tokenService);
+        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _tokenService);
         var request = new LoginRequestSchema("driver-branch@northernroute.com", "WrongPassword123");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -171,7 +174,7 @@ public sealed class LoginServiceTests
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _httpContextAccessor, _tokenService);
+        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _tokenService);
         var request = new LoginRequestSchema("audit-check@test.com", "SecurePassword789");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
