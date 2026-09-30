@@ -57,7 +57,8 @@ public sealed class MfaVerifyModule : IModule
                 user.Role?.Name ?? "USER",
                 accessToken,
                 refreshToken,
-                deviceSessionId
+                deviceSessionId,
+                false
             );
 
             return Results.Ok(response);

@@ -96,7 +96,8 @@ internal sealed class LoginService(
             user.Role?.Name ?? "USER",
             accessToken,
             refreshToken,
-            deviceSessionId ?? Guid.Empty
+            deviceSessionId ?? Guid.Empty,
+            false
         );
 
         return ResultSchema<LoginResponseSchema>.Success(response);
