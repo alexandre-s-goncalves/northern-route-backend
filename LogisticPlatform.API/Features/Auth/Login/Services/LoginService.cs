@@ -50,7 +50,7 @@ internal sealed class LoginService(
 
         if (user is null)
         {
-            var ghostAudit = new LoginAudit(Guid.Empty, ipAddress, userAgent, "FAILED");
+            var ghostAudit = new LoginAudit(Guid.Empty, null, ipAddress, userAgent, "FAILED");
             context.LoginAudits.Add(ghostAudit);
             await context.SaveChangesAsync(cancellationToken);
 
@@ -59,14 +59,14 @@ internal sealed class LoginService(
 
         if (user.PasswordHash != request.Password)
         {
-            var failedAudit = new LoginAudit(user.Id, ipAddress, userAgent, "FAILED");
+            var failedAudit = new LoginAudit(user.Id, null, ipAddress, userAgent, "FAILED");
             context.LoginAudits.Add(failedAudit);
             await context.SaveChangesAsync(cancellationToken);
 
             return ResultSchema<LoginResponseSchema>.Failure("Invalid credentials.");
         }
 
-        var successAudit = new LoginAudit(user.Id, ipAddress, userAgent, "SUCCESS");
+        var successAudit = new LoginAudit(user.Id, null, ipAddress, userAgent, "SUCCESS");
         context.LoginAudits.Add(successAudit);
         await context.SaveChangesAsync(cancellationToken);
 
