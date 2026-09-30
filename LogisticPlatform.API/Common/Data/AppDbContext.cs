@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using LogisticPlatform.API.Common.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,8 +10,11 @@ namespace LogisticPlatform.API.Common.Data;
 internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<LoginAudit> LoginAudits { get; set; } = null!;
+    public DbSet<MfaConfiguration> MfaConfigurations { get; set; } = null!;
+    public DbSet<RefreshTokenSession> RefreshTokenSessions { get; set; } = null!;
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserDeviceSession> UserDeviceSessions { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -20,10 +25,16 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
         var adminRoleId = new Guid("e7b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d");
         var userRoleId = new Guid("b8f2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d");
 
+        modelBuilder.Entity<MfaConfiguration>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<RefreshTokenSession>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<UserDeviceSession>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<LoginAudit>().HasQueryFilter(e => !e.IsDeleted);
+
         modelBuilder.Entity<LoginAudit>(entity =>
         {
             entity.ToTable("LoginAudits");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.DeviceSessionId).IsRequired(false);
             entity.Property(e => e.IpAddress).IsRequired().HasMaxLength(45);
             entity.Property(e => e.UserAgent).IsRequired();
             entity.Property(e => e.Status).IsRequired().HasMaxLength(20);
@@ -32,6 +43,7 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
             entity.HasOne(e => e.User)
                   .WithMany()
                   .HasForeignKey(e => e.UserId)
+                  .IsRequired(false)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -89,5 +101,27 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
                 );
             }
         });
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<BaseEntity>())
+        {
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    entry.Entity.CreatedAt = DateTime.UtcNow;
+                    break;
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = DateTime.UtcNow;
+                    break;
+                case EntityState.Deleted:
+                    entry.State = EntityState.Modified;
+                    entry.Entity.IsDeleted = true;
+                    entry.Entity.DeletedAt = DateTime.UtcNow;
+                    break;
+            }
+        }
+        return base.SaveChangesAsync(cancellationToken);
     }
 }
