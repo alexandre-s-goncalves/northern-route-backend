@@ -111,6 +111,32 @@ public sealed class LoginServiceTests : IDisposable
         Assert.Equal(testUser.Id, result.Data.UserId);
         Assert.Equal("ADMIN", result.Data.Role);
         Assert.False(string.IsNullOrWhiteSpace(result.Data.Token));
+        Assert.False(string.IsNullOrWhiteSpace(result.Data.RefreshToken));
+    }
+
+    [Fact(DisplayName = "Auth - Login Service: Should return success with empty refresh token when device context is unavailable")]
+    public async Task ExecuteAsync_ShouldReturnSuccess_WithEmptyRefreshToken_WhenHttpContextIsNull()
+    {
+        var options = CreateNewInMemoryDatabaseOptions();
+        using var context = new AppDbContext(options);
+
+        var testRole = new Role("ADMIN");
+        var testUser = new User("Manager Alex", "admin-no-context@test.com", "SecurePassword789", testRole.Id);
+
+        context.Roles.Add(testRole);
+        context.Users.Add(testUser);
+        await context.SaveChangesAsync();
+
+        var loginService = new LoginService(context, _deviceDetectorService, new HttpContextAccessor { HttpContext = null }, _refreshTokenService, _tokenService);
+        var request = new LoginRequestSchema("admin-no-context@test.com", "SecurePassword789");
+
+        var result = await loginService.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.Equal(Guid.Empty, result.Data.DeviceSessionId);
+        Assert.Equal(string.Empty, result.Data.RefreshToken);
     }
 
     [Fact(DisplayName = "Auth - Login Endpoint: Should map and return 400 BadRequest when processing failed execution")]
