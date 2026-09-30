@@ -1,10 +1,12 @@
 using System;
+using System.IO;
 using System.Linq;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Services;
+using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using LogisticPlatform.API.Features.Auth.Refresh.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,10 +14,24 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Scalar.AspNetCore;
+
+var envFileCandidates = new[]
+{
+    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+    Path.Combine(Directory.GetCurrentDirectory(), "LogisticPlatform.API", ".env"),
+    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.env"))
+};
+var envFilePath = envFileCandidates.FirstOrDefault(File.Exists);
+if (envFilePath is not null)
+{
+    DotNetEnv.Env.NoClobber().Load(envFilePath);
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<ILoginService, LoginService>();
@@ -23,7 +39,18 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDeviceDetectorService, DeviceDetectorService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IRefreshService, RefreshService>();
-builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IMfaService, MfaService>();
+builder.Services.Configure<SmtpOptions>(options =>
+{
+    var configuredOptions = SmtpOptions.FromConfiguration(builder.Configuration);
+    options.FromAddress = configuredOptions.FromAddress;
+    options.FromName = configuredOptions.FromName;
+    options.Host = configuredOptions.Host;
+    options.Password = configuredOptions.Password;
+    options.Port = configuredOptions.Port;
+    options.Username = configuredOptions.Username;
+});
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
     .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
@@ -70,6 +97,12 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 if (!app.Environment.IsEnvironment("Testing"))
 {
