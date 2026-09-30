@@ -9,5 +9,6 @@ public sealed record LoginResponseSchema(
     string Role,
     string Token,
     string RefreshToken,
-    Guid DeviceSessionId
+    Guid DeviceSessionId,
+    bool IsMfaRequired
 );
