@@ -5,8 +5,8 @@ using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Services;
+using LogisticPlatform.API.Features.Auth.Refresh.Services;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -22,6 +22,7 @@ builder.Services.AddScoped<ILoginService, LoginService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDeviceDetectorService, DeviceDetectorService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+builder.Services.AddScoped<IRefreshService, RefreshService>();
 builder.Services.AddHttpContextAccessor();
 
 var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
