@@ -8,6 +8,7 @@ using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Schemas;
+using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,7 @@ internal sealed class LoginService(
     AppDbContext context,
     IDeviceDetectorService deviceDetectorService,
     IHttpContextAccessor httpContextAccessor,
+    IMfaService mfaService,
     IRefreshTokenService refreshTokenService,
     ITokenService tokenService) : ILoginService
 {
@@ -77,6 +79,31 @@ internal sealed class LoginService(
             deviceSessionId = deviceSession.Id;
         }
 
+        var mfaConfig = await context.MfaConfigurations
+            .FirstOrDefaultAsync(m => m.UserId == user.Id, cancellationToken);
+
+        if (mfaConfig is not null && mfaConfig.IsEnabled && mfaConfig.Provider == "email")
+        {
+            var mfaAudit = new LoginAudit(user.Id, deviceSessionId, ipAddress, userAgent, "MFA_PENDING");
+            context.LoginAudits.Add(mfaAudit);
+            await context.SaveChangesAsync(cancellationToken);
+
+            await mfaService.SendEmailCodeAsync(user.Id, cancellationToken);
+
+            var mfaResponse = new LoginResponseSchema(
+                user.Id,
+                user.Name,
+                user.Email,
+                user.Role?.Name ?? "USER",
+                string.Empty,
+                string.Empty,
+                deviceSessionId ?? Guid.Empty,
+                true
+            );
+
+            return ResultSchema<LoginResponseSchema>.Success(mfaResponse);
+        }
+
         var successAudit = new LoginAudit(user.Id, deviceSessionId, ipAddress, userAgent, "SUCCESS");
         context.LoginAudits.Add(successAudit);
         await context.SaveChangesAsync(cancellationToken);
@@ -96,7 +123,8 @@ internal sealed class LoginService(
             user.Role?.Name ?? "USER",
             accessToken,
             refreshToken,
-            deviceSessionId ?? Guid.Empty
+            deviceSessionId ?? Guid.Empty,
+            false
         );
 
         return ResultSchema<LoginResponseSchema>.Success(response);

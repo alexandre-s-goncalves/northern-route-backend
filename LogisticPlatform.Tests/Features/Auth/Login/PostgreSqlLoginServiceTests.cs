@@ -4,6 +4,7 @@ using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Schemas;
 using LogisticPlatform.API.Features.Auth.Login.Services;
+using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -45,6 +46,7 @@ public sealed class PostgreSqlLoginServiceTests
             context,
             new DeviceDetectorService(),
             new HttpContextAccessor { HttpContext = httpContext },
+            new FakeMfaService(),
             new RefreshTokenService(context),
             new TokenService(configuration));
 
