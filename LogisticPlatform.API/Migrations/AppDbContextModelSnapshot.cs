@@ -163,18 +163,6 @@ namespace LogisticPlatform.API.Migrations
                         .IsUnique();
 
                     b.ToTable("Roles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("e7b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                            Name = "ADMIN"
-                        },
-                        new
-                        {
-                            Id = new Guid("b8f2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                            Name = "USER"
-                        });
                 });
 
             modelBuilder.Entity("LogisticPlatform.API.Common.Domain.User", b =>
@@ -208,24 +196,6 @@ namespace LogisticPlatform.API.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("Users", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                            Email = "ale@ale.com",
-                            Name = "Alexandre Santos",
-                            PasswordHash = "Password123",
-                            RoleId = new Guid("e7b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d")
-                        },
-                        new
-                        {
-                            Id = new Guid("c2b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                            Email = "operator@northernroute.com",
-                            Name = "John Doe Operator",
-                            PasswordHash = "Operator123",
-                            RoleId = new Guid("b8f2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d")
-                        });
                 });
 
             modelBuilder.Entity("LogisticPlatform.API.Common.Domain.UserDeviceSession", b =>

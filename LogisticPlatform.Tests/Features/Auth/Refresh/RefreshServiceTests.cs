@@ -31,7 +31,7 @@ public sealed class RefreshServiceTests : IDisposable
             .Build();
 
         _context = new AppDbContext(CreateNewInMemoryDatabaseOptions());
-        _refreshTokenService = new RefreshTokenService(_context);
+        _refreshTokenService = new RefreshTokenService(_context, TimeProvider.System);
         _tokenService = new TokenService(configuration);
     }
 
@@ -117,7 +117,7 @@ public sealed class RefreshTokenServiceTests : IDisposable
     public RefreshTokenServiceTests()
     {
         _context = new AppDbContext(CreateNewInMemoryDatabaseOptions());
-        _service = new RefreshTokenService(_context);
+        _service = new RefreshTokenService(_context, TimeProvider.System);
     }
 
     private static DbContextOptions<AppDbContext> CreateNewInMemoryDatabaseOptions()

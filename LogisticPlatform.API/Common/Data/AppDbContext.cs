@@ -22,13 +22,39 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
 
         base.OnModelCreating(modelBuilder);
 
-        var adminRoleId = new Guid("e7b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d");
-        var userRoleId = new Guid("b8f2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d");
-
         modelBuilder.Entity<MfaConfiguration>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<RefreshTokenSession>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<UserDeviceSession>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<LoginAudit>().HasQueryFilter(e => !e.IsDeleted);
+
+        modelBuilder.Entity<MfaConfiguration>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(entity => entity.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<MfaConfiguration>()
+            .HasIndex(entity => entity.UserId)
+            .IsUnique();
+
+        modelBuilder.Entity<RefreshTokenSession>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(entity => entity.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RefreshTokenSession>()
+            .HasOne<UserDeviceSession>()
+            .WithMany()
+            .HasForeignKey(entity => entity.DeviceSessionId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<RefreshTokenSession>()
+            .HasIndex(entity => entity.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<UserDeviceSession>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(entity => entity.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<LoginAudit>(entity =>
         {
@@ -44,7 +70,7 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
                   .WithMany()
                   .HasForeignKey(e => e.UserId)
                   .IsRequired(false)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Role>(entity =>
@@ -53,15 +79,6 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.Name).IsUnique();
-
-            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
-            {
-                entity.HasData(
-                    new { Id = adminRoleId, Name = "ADMIN" },
-                    new { Id = userRoleId, Name = "USER" }
-                );
-            }
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -77,33 +94,24 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
                   .WithMany()
                   .HasForeignKey(e => e.RoleId)
                   .OnDelete(DeleteBehavior.Restrict);
-
-            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            if (string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase))
-            {
-                entity.HasData(
-                    new
-                    {
-                        Id = new Guid("a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                        Name = "Alexandre Santos",
-                        Email = "ale@ale.com",
-                        PasswordHash = "Password123",
-                        RoleId = adminRoleId
-                    },
-                    new
-                    {
-                        Id = new Guid("c2b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"),
-                        Name = "John Doe Operator",
-                        Email = "operator@northernroute.com",
-                        PasswordHash = "Operator123",
-                        RoleId = userRoleId
-                    }
-                );
-            }
         });
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ApplyEntityStateChanges();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyEntityStateChanges();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void ApplyEntityStateChanges()
     {
         foreach (var entry in ChangeTracker.Entries<BaseEntity>())
         {
@@ -122,6 +130,5 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
                     break;
             }
         }
-        return base.SaveChangesAsync(cancellationToken);
     }
 }

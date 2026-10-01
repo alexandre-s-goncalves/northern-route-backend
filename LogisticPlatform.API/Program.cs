@@ -3,6 +3,8 @@ using System.IO;
 using System.Linq;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
+using LogisticPlatform.API.Common.Data.Seeding;
+using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Services;
@@ -10,18 +12,26 @@ using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using LogisticPlatform.API.Features.Auth.Refresh.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Scalar.AspNetCore;
 
-var envFileCandidates = new[]
+var envFileRoots = new[]
 {
-    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
-    Path.Combine(Directory.GetCurrentDirectory(), "LogisticPlatform.API", ".env"),
-    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../.env"))
+    Directory.GetCurrentDirectory(),
+    Path.Combine(Directory.GetCurrentDirectory(), "LogisticPlatform.API"),
+    AppContext.BaseDirectory,
+    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../")),
+    Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../"))
 };
+var envFileCandidates = envFileRoots
+    .Where(root => !string.IsNullOrWhiteSpace(root))
+    .Select(root => Path.Combine(root, ".env"))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .Append(Path.Combine(Directory.GetCurrentDirectory(), "../.env"));
 var envFilePath = envFileCandidates.FirstOrDefault(File.Exists);
 if (envFilePath is not null)
 {
@@ -33,8 +43,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<DevelopmentDataSeeder>();
+builder.Services.AddScoped<IPasswordHashService, PasswordHashService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDeviceDetectorService, DeviceDetectorService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
@@ -52,34 +66,7 @@ builder.Services.Configure<SmtpOptions>(options =>
 });
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-var isTestRuntime = AppDomain.CurrentDomain.GetAssemblies()
-    .Any(a => a.FullName != null && a.FullName.Contains("test", StringComparison.OrdinalIgnoreCase));
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-{
-    if (isTestRuntime)
-    {
-        options.UseNpgsql("Host=localhost;Database=logistic_platform_test_stub;Username=postgres;Password=test");
-    }
-    else
-    {
-        var connectionString = builder.Configuration["JWT_SECRET_KEY"] != null
-            ? builder.Configuration["DATABASE_URL"]
-            : builder.Configuration.GetConnectionString("DefaultConnection");
-
-        options.UseNpgsql(connectionString, npgsqlOptions =>
-        {
-            npgsqlOptions.CommandTimeout(5);
-            npgsqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 2,
-                maxRetryDelay: TimeSpan.FromSeconds(2),
-                errorCodesToAdd: null);
-        });
-    }
-
-    options.ConfigureWarnings(warnings => warnings.Ignore(
-        Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-});
+builder.Services.AddAppDbContext(builder.Configuration, builder.Environment);
 
 var allowedOriginsSetting = builder.Configuration["ALLOWED_ORIGINS"] ?? string.Empty;
 var allowedOrigins = allowedOriginsSetting.Split(',', StringSplitOptions.RemoveEmptyEntries);
@@ -109,6 +96,9 @@ if (!app.Environment.IsEnvironment("Testing"))
     await using var scope = app.Services.CreateAsyncScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await dbContext.Database.MigrateAsync();
+
+    var developmentDataSeeder = scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>();
+    await developmentDataSeeder.SeedAsync(app.Environment.IsDevelopment());
 }
 
 app.RegisterModules();

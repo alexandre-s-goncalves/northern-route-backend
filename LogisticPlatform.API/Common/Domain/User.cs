@@ -19,4 +19,9 @@ internal sealed class User
         PasswordHash = passwordHash;
         RoleId = roleId;
     }
+
+    internal void SetPasswordHash(string passwordHash)
+    {
+        PasswordHash = passwordHash;
+    }
 }

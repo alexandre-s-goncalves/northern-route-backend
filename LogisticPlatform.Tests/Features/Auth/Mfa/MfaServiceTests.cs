@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using LogisticPlatform.API.Common.Data;
@@ -7,6 +6,7 @@ using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Mfa.Schemas;
 using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace LogisticPlatform.Tests.Features.Auth.Mfa;
@@ -15,6 +15,7 @@ public sealed class MfaServiceTests : IDisposable
 {
     private readonly AppDbContext _context;
     private readonly FakeEmailService _emailService;
+    private readonly TestTimeProvider _timeProvider;
     private readonly MfaService _service;
 
     public MfaServiceTests()
@@ -25,8 +26,14 @@ public sealed class MfaServiceTests : IDisposable
 
         _context = new AppDbContext(options);
         _emailService = new FakeEmailService();
-        _service = new MfaService(_context, _emailService);
+        _timeProvider = new TestTimeProvider(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection([new KeyValuePair<string, string?>("MFA_CODE_PEPPER", _testPepper)])
+            .Build();
+        _service = new MfaService(_context, _emailService, configuration, _timeProvider);
     }
+
+    private const string _testPepper = "MfaTestPepper_2026_AtLeast32Bytes";
 
     public void Dispose()
     {
@@ -36,7 +43,7 @@ public sealed class MfaServiceTests : IDisposable
     [Fact]
     public async Task SendEmailCodeAsync_ShouldFail_WhenUserDoesNotExist()
     {
-        var result = await _service.SendEmailCodeAsync(Guid.NewGuid(), CancellationToken.None);
+        var result = await _service.SendEmailCodeAsync(Guid.NewGuid(), null, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("User profile reference not found.", result.ErrorMessage);
@@ -49,7 +56,7 @@ public sealed class MfaServiceTests : IDisposable
         _emailService.OnSend = async () =>
             Assert.Empty(await _context.MfaConfigurations.AsNoTracking().ToListAsync());
 
-        var result = await _service.SendEmailCodeAsync(user.Id, CancellationToken.None);
+        var result = await _service.SendEmailCodeAsync(user.Id, null, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
@@ -62,6 +69,7 @@ public sealed class MfaServiceTests : IDisposable
         Assert.Equal("email", configuration.Provider);
         Assert.Equal(64, configuration.SecretKeyHash.Length);
         Assert.NotNull(configuration.UpdatedAt);
+        Assert.Equal(_timeProvider.GetUtcNow().UtcDateTime.AddMinutes(15), configuration.CodeExpiresAt);
 
         var (toEmail, userName, securityCode) = Assert.Single(_emailService.SentMessages);
         Assert.Equal(user.Email, toEmail);
@@ -77,7 +85,7 @@ public sealed class MfaServiceTests : IDisposable
         _emailService.ExceptionToThrow = new InvalidOperationException("SMTP unavailable");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.SendEmailCodeAsync(user.Id, CancellationToken.None));
+            () => _service.SendEmailCodeAsync(user.Id, null, CancellationToken.None));
 
         Assert.Equal("SMTP unavailable", exception.Message);
         Assert.Empty(await _context.MfaConfigurations.AsNoTracking().ToListAsync());
@@ -100,7 +108,7 @@ public sealed class MfaServiceTests : IDisposable
         _context.MfaConfigurations.Add(configuration);
         await _context.SaveChangesAsync();
 
-        var result = await _service.SendEmailCodeAsync(user.Id, CancellationToken.None);
+        var result = await _service.SendEmailCodeAsync(user.Id, null, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Data);
@@ -122,7 +130,7 @@ public sealed class MfaServiceTests : IDisposable
     public async Task VerifyMfaAsync_ShouldFail_WhenConfigurationDoesNotExist()
     {
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema("123456", Guid.NewGuid()),
+            new MfaVerificationRequestSchema("123456", Guid.NewGuid(), null),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -133,10 +141,10 @@ public sealed class MfaServiceTests : IDisposable
     public async Task VerifyMfaAsync_ShouldFail_WhenConfigurationIsDisabled()
     {
         var user = await AddUserAsync("disabled@example.com");
-        await AddConfigurationAsync(user.Id, isEnabled: false, provider: "email", ComputeHash("123456"));
+        var configuration = await AddConfigurationAsync(user.Id, isEnabled: false, provider: "email", ComputeHash("123456"));
 
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema("123456", user.Id),
+            new MfaVerificationRequestSchema("123456", user.Id, configuration.ChallengeDeviceSessionId),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -147,10 +155,10 @@ public sealed class MfaServiceTests : IDisposable
     public async Task VerifyMfaAsync_ShouldFail_WhenProviderIsNotEmail()
     {
         var user = await AddUserAsync("totp@example.com");
-        await AddConfigurationAsync(user.Id, isEnabled: true, provider: "totp", ComputeHash("123456"));
+        var configuration = await AddConfigurationAsync(user.Id, isEnabled: true, provider: "totp", ComputeHash("123456"));
 
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema("123456", user.Id),
+            new MfaVerificationRequestSchema("123456", user.Id, configuration.ChallengeDeviceSessionId),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -161,10 +169,10 @@ public sealed class MfaServiceTests : IDisposable
     public async Task VerifyMfaAsync_ShouldFail_WhenCodeIsEmpty()
     {
         var user = await AddUserAsync("empty-code@example.com");
-        await AddConfigurationAsync(user.Id, isEnabled: true, provider: "email", ComputeHash("123456"));
+        var configuration = await AddConfigurationAsync(user.Id, isEnabled: true, provider: "email", ComputeHash("123456"));
 
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema(" ", user.Id),
+            new MfaVerificationRequestSchema(" ", user.Id, configuration.ChallengeDeviceSessionId),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -180,27 +188,28 @@ public sealed class MfaServiceTests : IDisposable
             isEnabled: true,
             provider: "email",
             ComputeHash("123456"),
-            updatedAt: DateTime.UtcNow.AddMinutes(-16));
+            codeExpiresAt: _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(-1));
 
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema("123456", user.Id),
+            new MfaVerificationRequestSchema("123456", user.Id, configuration.ChallengeDeviceSessionId),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Security token verification code has expired.", result.ErrorMessage);
-        Assert.True(configuration.IsDeleted);
-        Assert.NotNull(configuration.DeletedAt);
-        Assert.Empty(await _context.MfaConfigurations.ToListAsync());
+        Assert.False(configuration.IsDeleted);
+        Assert.Empty(configuration.SecretKeyHash);
+        Assert.Null(configuration.CodeExpiresAt);
+        Assert.Single(await _context.MfaConfigurations.ToListAsync());
     }
 
     [Fact]
     public async Task VerifyMfaAsync_ShouldFail_WhenCodeDoesNotMatch()
     {
         var user = await AddUserAsync("mismatch@example.com");
-        await AddConfigurationAsync(user.Id, isEnabled: true, provider: "email", ComputeHash("123456"));
+        var configuration = await AddConfigurationAsync(user.Id, isEnabled: true, provider: "email", ComputeHash("123456"));
 
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema("654321", user.Id),
+            new MfaVerificationRequestSchema("654321", user.Id, configuration.ChallengeDeviceSessionId),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -216,17 +225,57 @@ public sealed class MfaServiceTests : IDisposable
             isEnabled: true,
             provider: "email",
             ComputeHash("123456"),
-            updatedAt: null);
+            codeExpiresAt: _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(15));
 
         var result = await _service.VerifyMfaAsync(
-            new MfaVerificationRequestSchema("123456", user.Id),
+            new MfaVerificationRequestSchema("123456", user.Id, configuration.ChallengeDeviceSessionId),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.True(result.Data);
-        Assert.True(configuration.IsDeleted);
-        Assert.NotNull(configuration.DeletedAt);
-        Assert.Empty(await _context.MfaConfigurations.ToListAsync());
+        Assert.False(configuration.IsDeleted);
+        Assert.Empty(configuration.SecretKeyHash);
+        Assert.Null(configuration.CodeExpiresAt);
+        Assert.Single(await _context.MfaConfigurations.ToListAsync());
+    }
+
+    [Fact]
+    public async Task VerifyMfaAsync_ShouldExpireAtExactBoundary()
+    {
+        var user = await AddUserAsync("boundary@example.com");
+        var expiresAt = _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(15);
+        var configuration = await AddConfigurationAsync(
+            user.Id,
+            isEnabled: true,
+            provider: "email",
+            ComputeHash("123456"),
+            codeExpiresAt: expiresAt);
+        _timeProvider.SetUtcNow(new DateTimeOffset(expiresAt, TimeSpan.Zero));
+
+        var result = await _service.VerifyMfaAsync(
+            new MfaVerificationRequestSchema("123456", user.Id, configuration.ChallengeDeviceSessionId),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Security token verification code has expired.", result.ErrorMessage);
+        Assert.True(configuration.IsEnabled);
+        Assert.False(configuration.IsDeleted);
+        Assert.Empty(configuration.SecretKeyHash);
+    }
+
+    [Fact]
+    public async Task VerifyMfaAsync_ShouldRejectChallengeForAnotherDevice()
+    {
+        var user = await AddUserAsync("wrong-device@example.com");
+        var configuration = await AddConfigurationAsync(user.Id, isEnabled: true, provider: "email", ComputeHash("123456"));
+
+        var result = await _service.VerifyMfaAsync(
+            new MfaVerificationRequestSchema("123456", user.Id, Guid.NewGuid()),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Security token verification code mismatch.", result.ErrorMessage);
+        Assert.False(string.IsNullOrEmpty(configuration.SecretKeyHash));
     }
 
     private async Task<User> AddUserAsync(string email)
@@ -244,7 +293,8 @@ public sealed class MfaServiceTests : IDisposable
         bool isEnabled,
         string provider,
         string secretKeyHash,
-        DateTime? updatedAt = null)
+        DateTime? updatedAt = null,
+        DateTime? codeExpiresAt = null)
     {
         var configuration = new MfaConfiguration
         {
@@ -253,7 +303,9 @@ public sealed class MfaServiceTests : IDisposable
             IsEnabled = isEnabled,
             Provider = provider,
             SecretKeyHash = secretKeyHash,
-            UpdatedAt = updatedAt,
+            CodeExpiresAt = codeExpiresAt ?? _timeProvider.GetUtcNow().UtcDateTime.AddMinutes(15),
+            ChallengeDeviceSessionId = Guid.NewGuid(),
+            UpdatedAt = updatedAt ?? _timeProvider.GetUtcNow().UtcDateTime,
             UserId = userId
         };
         _context.MfaConfigurations.Add(configuration);
@@ -263,8 +315,17 @@ public sealed class MfaServiceTests : IDisposable
 
     private static string ComputeHash(string code)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(code));
-        return string.Concat(hash.Select(value => value.ToString("x2", CultureInfo.InvariantCulture)));
+        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(_testPepper), Encoding.UTF8.GetBytes(code));
+        return Convert.ToHexString(hash);
+    }
+
+    private sealed class TestTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        public void SetUtcNow(DateTimeOffset utcNow) => _utcNow = utcNow;
     }
 
     private sealed class FakeEmailService : IEmailService

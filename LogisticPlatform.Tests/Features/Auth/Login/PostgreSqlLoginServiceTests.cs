@@ -6,6 +6,7 @@ using LogisticPlatform.API.Features.Auth.Login.Schemas;
 using LogisticPlatform.API.Features.Auth.Login.Services;
 using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -46,8 +47,9 @@ public sealed class PostgreSqlLoginServiceTests
             context,
             new DeviceDetectorService(),
             new HttpContextAccessor { HttpContext = httpContext },
+            new PasswordHashService(new PasswordHasher<User>()),
             new FakeMfaService(),
-            new RefreshTokenService(context),
+            new RefreshTokenService(context, TimeProvider.System),
             new TokenService(configuration));
 
         var result = await loginService.ExecuteAsync(
