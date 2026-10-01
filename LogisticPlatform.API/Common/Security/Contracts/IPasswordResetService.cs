@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace LogisticPlatform.API.Common.Security;
+namespace LogisticPlatform.API.Common.Security.Contracts;
 
 public interface IPasswordResetService
 {

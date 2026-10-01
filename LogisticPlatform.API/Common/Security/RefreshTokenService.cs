@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Domain;
+using LogisticPlatform.API.Common.Security.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace LogisticPlatform.API.Common.Security;

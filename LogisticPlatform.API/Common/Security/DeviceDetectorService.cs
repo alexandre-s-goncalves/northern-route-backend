@@ -1,24 +1,27 @@
 using System;
 using LogisticPlatform.API.Common.Domain;
+using LogisticPlatform.API.Common.Security.Contracts;
 using Microsoft.AspNetCore.Http;
 
 namespace LogisticPlatform.API.Common.Security;
 
 public sealed class DeviceDetectorService : IDeviceDetectorService
 {
+    private const string _unknown = "UNKNOWN";
+
     public UserDeviceSession ResolveDeviceDetails(HttpContext httpContext, Guid userId)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
 
-        var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "UNKNOWN";
+        var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? _unknown;
         var userAgent = httpContext.Request.Headers.UserAgent.ToString();
 
-        var browserName = "UNKNOWN";
-        var browserVersion = "UNKNOWN";
+        var browserName = _unknown;
+        var browserVersion = _unknown;
         var deviceModel = "DESKTOP_GENERIC";
         var deviceType = "desktop";
-        var osName = "UNKNOWN";
-        var osVersion = "UNKNOWN";
+        var osName = _unknown;
+        var osVersion = _unknown;
 
         if (userAgent.Contains("Android", StringComparison.OrdinalIgnoreCase))
         {
@@ -71,8 +74,8 @@ public sealed class DeviceDetectorService : IDeviceDetectorService
             IpAddress = ipAddress,
             IsActive = true,
             LastActiveAt = DateTime.UtcNow,
-            LocationCity = "UNKNOWN",
-            LocationCountry = "UNKNOWN",
+            LocationCity = _unknown,
+            LocationCountry = _unknown,
             OsName = osName,
             OsVersion = osVersion,
             UserId = userId

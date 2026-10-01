@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using LogisticPlatform.API.Common.Domain;
+using LogisticPlatform.API.Common.Security.Contracts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 

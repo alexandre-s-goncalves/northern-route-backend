@@ -3,6 +3,7 @@ using System.Text;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using LogisticPlatform.API.Features.Auth.Mfa.Schemas;
 using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using Microsoft.EntityFrameworkCore;
@@ -63,6 +64,7 @@ public sealed class MfaServiceTests : IDisposable
         Assert.Equal("AL***@EXAMPLE.COM", result.Data.MaskedEmail);
         Assert.True(result.Data.MessageDispatched);
         Assert.Equal(user.Id, result.Data.UserId);
+        Assert.Empty(_emailService.PasswordResetMessages);
 
         var configuration = await _context.MfaConfigurations.SingleAsync();
         Assert.True(configuration.IsEnabled);
@@ -331,10 +333,11 @@ public sealed class MfaServiceTests : IDisposable
     private sealed class FakeEmailService : IEmailService
     {
         public List<(string ToEmail, string UserName, string SecurityCode)> SentMessages { get; } = [];
+        public List<(string ToEmail, string UserName, string ResetLink)> PasswordResetMessages { get; } = [];
         public Func<Task>? OnSend { get; set; }
         public Exception? ExceptionToThrow { get; set; }
 
-        public async Task SendMfaCodeEmailAsync(string toEmail, string userName, string securityCode)
+        async Task IEmailService.SendMfaCodeEmailAsync(string toEmail, string userName, string securityCode)
         {
             if (OnSend is not null)
             {
@@ -349,8 +352,9 @@ public sealed class MfaServiceTests : IDisposable
             SentMessages.Add((toEmail, userName, securityCode));
         }
 
-        public Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
+        Task IEmailService.SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
         {
+            PasswordResetMessages.Add((toEmail, userName, resetLink));
             return Task.CompletedTask;
         }
     }

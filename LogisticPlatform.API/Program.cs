@@ -6,9 +6,11 @@ using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Data.Seeding;
 using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Services;
 using LogisticPlatform.API.Features.Auth.Mfa.Services;
+using LogisticPlatform.API.Features.Auth.PasswordReset.Services;
 using LogisticPlatform.API.Features.Auth.Refresh.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -55,6 +57,7 @@ builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IRefreshService, RefreshService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<IPasswordResetServiceFeature, PasswordResetServiceFeature>();
 
 builder.Services.Configure<SmtpOptions>(options =>
 {

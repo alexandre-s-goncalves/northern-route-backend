@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace LogisticPlatform.API.Common.Security;
+namespace LogisticPlatform.API.Common.Security.Contracts;
 
 public interface IEmailService
 {

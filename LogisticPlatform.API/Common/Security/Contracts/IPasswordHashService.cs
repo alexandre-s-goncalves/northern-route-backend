@@ -1,6 +1,6 @@
 using LogisticPlatform.API.Common.Domain;
 
-namespace LogisticPlatform.API.Common.Security;
+namespace LogisticPlatform.API.Common.Security.Contracts;
 
 internal interface IPasswordHashService
 {

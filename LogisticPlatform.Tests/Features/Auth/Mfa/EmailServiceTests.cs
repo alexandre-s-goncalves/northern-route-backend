@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using MailKit.Security;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,27 @@ public sealed class EmailServiceTests
     }
 
     [Fact]
+    public async Task SendPasswordResetEmailAsync_ShouldSendHtmlMessageThroughSmtp()
+    {
+        using var server = new LocalSmtpServer();
+        var receiveMessage = server.ReceiveMessageAsync();
+        var service = new EmailService(CreateSmtpOptions(server.Port), SecureSocketOptions.None);
+        const string resetLink = "https://app.example.com/reset-password?token=secret-token";
+
+        await service.SendPasswordResetEmailAsync("operator@example.com", "Operator One", resetLink);
+
+        var rawMessage = await receiveMessage;
+        using var messageStream = new MemoryStream(Encoding.ASCII.GetBytes(rawMessage));
+        using var message = await MimeMessage.LoadAsync(messageStream);
+
+        Assert.Equal("security@example.com", message.From.Mailboxes.Single().Address);
+        Assert.Equal("operator@example.com", message.To.Mailboxes.Single().Address);
+        Assert.Equal("Recuperação de Senha - NorthernRoute", message.Subject);
+        Assert.Contains("Operator One", message.HtmlBody, StringComparison.Ordinal);
+        Assert.Contains(resetLink, message.HtmlBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SendMfaCodeEmailAsync_ShouldThrow_WhenRecipientIsEmpty()
     {
         var service = new EmailService(new SmtpOptions(), SecureSocketOptions.StartTls);
@@ -53,6 +75,33 @@ public sealed class EmailServiceTests
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => service.SendMfaCodeEmailAsync("operator@example.com", "Operator One", " "));
+    }
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_ShouldThrow_WhenRecipientIsEmpty()
+    {
+        var service = new EmailService(new SmtpOptions(), SecureSocketOptions.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.SendPasswordResetEmailAsync(" ", "Operator One", "https://example.com/reset"));
+    }
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_ShouldThrow_WhenUserNameIsEmpty()
+    {
+        var service = new EmailService(new SmtpOptions(), SecureSocketOptions.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.SendPasswordResetEmailAsync("operator@example.com", " ", "https://example.com/reset"));
+    }
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_ShouldThrow_WhenResetLinkIsEmpty()
+    {
+        var service = new EmailService(new SmtpOptions(), SecureSocketOptions.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => service.SendPasswordResetEmailAsync("operator@example.com", "Operator One", " "));
     }
 
     [Fact]

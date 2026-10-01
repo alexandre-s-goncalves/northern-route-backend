@@ -2,6 +2,7 @@ using System;
 using System.Security.Cryptography;
 using System.Text;
 using LogisticPlatform.API.Common.Domain;
+using LogisticPlatform.API.Common.Security.Contracts;
 using Microsoft.AspNetCore.Identity;
 
 namespace LogisticPlatform.API.Common.Security;
