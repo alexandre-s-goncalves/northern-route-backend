@@ -1,16 +1,21 @@
 using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Domain;
+using LogisticPlatform.API.Common.Security.Contracts;
+using Microsoft.Extensions.Configuration;
 
 namespace LogisticPlatform.API.Common.Security;
 
 internal sealed class PasswordResetService(
     AppDbContext context,
-    IEmailService emailService) : IPasswordResetService
+    IEmailService emailService,
+    TimeProvider timeProvider,
+    IConfiguration configuration) : IPasswordResetService
 {
     public string ComputeSha256Hash(string rawData)
     {
@@ -31,11 +36,12 @@ internal sealed class PasswordResetService(
 
         var rawToken = Convert.ToHexStringLower(tokenBytes);
         var tokenHash = ComputeSha256Hash(rawToken);
+        var now = timeProvider.GetUtcNow().UtcDateTime;
 
         var resetTokenEntity = new PasswordResetToken
         {
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            CreatedAt = now,
+            ExpiresAt = now.AddMinutes(15),
             Id = Guid.NewGuid(),
             IsConsumed = false,
             TokenHash = tokenHash,
@@ -45,10 +51,15 @@ internal sealed class PasswordResetService(
         context.PasswordResetTokens.Add(resetTokenEntity);
         await context.SaveChangesAsync(cancellationToken);
 
-        var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:5173";
-        var resetLink = $"{allowedOrigins}/reset-password?token={rawToken}";
+        var allowedOrigins = configuration["ALLOWED_ORIGINS"];
+        var frontendOrigin = allowedOrigins?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(origin => origin.Trim().TrimEnd('/'))
+            .FirstOrDefault(origin => origin.Length > 0)
+            ?? "http://localhost:5173";
+        var resetLink = $"{frontendOrigin}/reset-password?token={Uri.EscapeDataString(rawToken)}";
 
-        await emailService.SendMfaCodeEmailAsync(userEmail, userName, $"LINK:{resetLink}");
+        await emailService.SendPasswordResetEmailAsync(userEmail, userName, resetLink);
 
         return rawToken;
     }

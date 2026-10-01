@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using LogisticPlatform.API.Common.Security.Contracts;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
@@ -58,19 +59,11 @@ public sealed class EmailService : IEmailService
     public async Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(toEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userName);
         ArgumentException.ThrowIfNullOrWhiteSpace(resetLink);
 
-        var fromAddress = Environment.GetEnvironmentVariable("SMTP_FROM_ADDRESS") ?? "security@northernroute.com";
-        var fromName = Environment.GetEnvironmentVariable("SMTP_FROM_NAME") ?? "NorthernRoute Security";
-        var host = Environment.GetEnvironmentVariable("SMTP_HOST") ?? "localhost";
-        var password = Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? string.Empty;
-        var portStr = Environment.GetEnvironmentVariable("SMTP_PORT") ?? "587";
-        var username = Environment.GetEnvironmentVariable("SMTP_USERNAME") ?? string.Empty;
-
-        _ = int.TryParse(portStr, out int port);
-
         using var email = new MimeMessage();
-        email.From.Add(new MailboxAddress(fromName, fromAddress));
+        email.From.Add(new MailboxAddress(_options.FromName, _options.FromAddress));
         email.To.Add(new MailboxAddress(userName, toEmail));
         email.Subject = "Recuperação de Senha - NorthernRoute";
 
@@ -90,8 +83,8 @@ public sealed class EmailService : IEmailService
         email.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.StartTls);
-        await client.AuthenticateAsync(username, password);
+        await client.ConnectAsync(_options.Host, _options.Port, _secureSocketOptions);
+        await client.AuthenticateAsync(_options.Username, _options.Password);
         await client.SendAsync(email);
         await client.DisconnectAsync(true);
     }

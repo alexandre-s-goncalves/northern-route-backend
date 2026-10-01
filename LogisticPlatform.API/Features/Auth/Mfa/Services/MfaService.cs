@@ -8,6 +8,7 @@ using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using LogisticPlatform.API.Features.Auth.Mfa.Schemas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;

@@ -1,5 +1,6 @@
 using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using Xunit;

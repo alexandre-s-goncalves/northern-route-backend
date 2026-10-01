@@ -3,7 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LogisticPlatform.API.Common.Domain;
 
-namespace LogisticPlatform.API.Common.Security;
+namespace LogisticPlatform.API.Common.Security.Contracts;
 
 public interface IRefreshTokenService
 {

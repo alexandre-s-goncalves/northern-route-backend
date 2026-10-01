@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using LogisticPlatform.API.Features.Auth.Refresh.Schemas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;

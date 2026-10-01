@@ -8,6 +8,7 @@ using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Data.Seeding;
 using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.Contracts;
 using LogisticPlatform.API.Features.Auth.Login.IoC;
 using LogisticPlatform.API.Features.Auth.Login.Services;
@@ -218,7 +219,7 @@ public sealed class CoverageCompletionTests
             .Options;
 
         await using var context = new AppDbContext(options);
-        var emailService = new FakeEmailService();
+        var emailService = new LogisticPlatform.Tests.TestEmailService();
         var timeProvider = new FakeTimeProvider(new DateTimeOffset(2026, 9, 30, 12, 0, 0, TimeSpan.Zero));
         var role = new Role("MFA_PEPPER_ROLE");
         var user = new User("Pepper User", "pepper-missing@example.com", "Password123", role.Id);
@@ -249,19 +250,6 @@ public sealed class CoverageCompletionTests
         var serviceDescriptor = services.SingleOrDefault(descriptor => descriptor.ServiceType == typeof(ILoginService));
         Assert.NotNull(serviceDescriptor);
         Assert.Equal(typeof(LoginService), serviceDescriptor.ImplementationType);
-    }
-
-    private sealed class FakeEmailService : IEmailService
-    {
-        public Task SendMfaCodeEmailAsync(string toEmail, string userName, string securityCode)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
-        {
-            return Task.CompletedTask;
-        }
     }
 
     private sealed class FakeTimeProvider(DateTimeOffset utcNow) : TimeProvider

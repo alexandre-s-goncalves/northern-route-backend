@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using LogisticPlatform.API.Common.Data;
 using LogisticPlatform.API.Common.Security;
+using LogisticPlatform.API.Common.Security.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -64,6 +65,7 @@ public class WebTestFixture : WebApplicationFactory<Program>
 public sealed class TestEmailService : IEmailService
 {
     private readonly ConcurrentDictionary<string, (string UserName, string SecurityCode)> _sentMessages = new();
+    private readonly ConcurrentDictionary<string, string> _passwordResetLinks = new(StringComparer.OrdinalIgnoreCase);
 
     public Task SendMfaCodeEmailAsync(string toEmail, string userName, string securityCode)
     {
@@ -73,11 +75,17 @@ public sealed class TestEmailService : IEmailService
 
     public Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
     {
+        _passwordResetLinks[toEmail] = resetLink;
         return Task.CompletedTask;
     }
 
     public (string UserName, string SecurityCode) GetLastMessage(string toEmail)
     {
         return _sentMessages[toEmail];
+    }
+
+    public string GetLastPasswordResetLink(string toEmail)
+    {
+        return _passwordResetLinks[toEmail];
     }
 }
