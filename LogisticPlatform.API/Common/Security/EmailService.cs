@@ -54,4 +54,46 @@ public sealed class EmailService : IEmailService
         await client.SendAsync(email);
         await client.DisconnectAsync(true);
     }
+
+    public async Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(toEmail);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resetLink);
+
+        var fromAddress = Environment.GetEnvironmentVariable("SMTP_FROM_ADDRESS") ?? "security@northernroute.com";
+        var fromName = Environment.GetEnvironmentVariable("SMTP_FROM_NAME") ?? "NorthernRoute Security";
+        var host = Environment.GetEnvironmentVariable("SMTP_HOST") ?? "localhost";
+        var password = Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? string.Empty;
+        var portStr = Environment.GetEnvironmentVariable("SMTP_PORT") ?? "587";
+        var username = Environment.GetEnvironmentVariable("SMTP_USERNAME") ?? string.Empty;
+
+        _ = int.TryParse(portStr, out int port);
+
+        using var email = new MimeMessage();
+        email.From.Add(new MailboxAddress(fromName, fromAddress));
+        email.To.Add(new MailboxAddress(userName, toEmail));
+        email.Subject = "Recuperação de Senha - NorthernRoute";
+
+        var htmlBody = $@"
+            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;'>
+                <h2 style='color: #0f172a; font-size: 20px; font-weight: bold; margin-bottom: 16px;'>Recuperação de Senha - NorthernRoute</h2>
+                <p style='color: #334155; font-size: 14px; line-height: 1.5;'>Olá, <strong>{userName}</strong>,</p>
+                <p style='color: #334155; font-size: 14px; line-height: 1.5;'>Uma solicitação de redefinição de senha foi realizada para a sua conta operacional. Clique no botão seguro abaixo para definir uma nova credencial de acesso:</p>
+                <div style='text-align: center; margin: 32px 0;'>
+                    <a href='{resetLink}' style='background-color: #0f172a; color: #ffffff; padding: 12px 24px; text-decoration: none; font-weight: bold; border-radius: 8px; display: inline-block;'>Redefinir Minha Senha</a>
+                </div>
+                <p style='color: #64748b; font-size: 12px; line-height: 1.5;'>Se o botão não funcionar, copie e cole o link a seguir no seu navegador:</p>
+                <p style='color: #0284c7; font-size: 12px; word-break: break-all;'>{resetLink}</p>
+                <p style='color: #64748b; font-size: 12px; line-height: 1.5; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 16px;'>Este link expira automaticamente em <strong>15 minutos</strong>. Caso não tenha solicitado essa alteração, ignore este e-mail.</p>
+            </div>";
+
+        email.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
+
+        using var client = new SmtpClient();
+        await client.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.StartTls);
+        await client.AuthenticateAsync(username, password);
+        await client.SendAsync(email);
+        await client.DisconnectAsync(true);
+    }
+
 }

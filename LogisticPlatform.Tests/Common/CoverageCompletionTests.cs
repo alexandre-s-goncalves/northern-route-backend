@@ -257,6 +257,11 @@ public sealed class CoverageCompletionTests
         {
             return Task.CompletedTask;
         }
+
+        public Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
+        {
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeTimeProvider(DateTimeOffset utcNow) : TimeProvider

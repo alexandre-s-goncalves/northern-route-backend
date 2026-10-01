@@ -348,5 +348,10 @@ public sealed class MfaServiceTests : IDisposable
 
             SentMessages.Add((toEmail, userName, securityCode));
         }
+
+        public Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

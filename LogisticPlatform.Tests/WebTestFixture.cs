@@ -71,6 +71,11 @@ public sealed class TestEmailService : IEmailService
         return Task.CompletedTask;
     }
 
+    public Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetLink)
+    {
+        return Task.CompletedTask;
+    }
+
     public (string UserName, string SecurityCode) GetLastMessage(string toEmail)
     {
         return _sentMessages[toEmail];
