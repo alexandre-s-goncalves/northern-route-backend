@@ -11,6 +11,7 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
 {
     public DbSet<LoginAudit> LoginAudits { get; set; } = null!;
     public DbSet<MfaConfiguration> MfaConfigurations { get; set; } = null!;
+    public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
     public DbSet<RefreshTokenSession> RefreshTokenSessions { get; set; } = null!;
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
@@ -22,18 +23,30 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
 
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<LoginAudit>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MfaConfiguration>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<PasswordResetToken>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<RefreshTokenSession>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<UserDeviceSession>().HasQueryFilter(e => !e.IsDeleted);
-        modelBuilder.Entity<LoginAudit>().HasQueryFilter(e => !e.IsDeleted);
 
         modelBuilder.Entity<MfaConfiguration>()
             .HasOne<User>()
             .WithMany()
             .HasForeignKey(entity => entity.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<MfaConfiguration>()
             .HasIndex(entity => entity.UserId)
+            .IsUnique();
+
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(entity => entity.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasIndex(entity => entity.TokenHash)
             .IsUnique();
 
         modelBuilder.Entity<RefreshTokenSession>()
@@ -41,11 +54,13 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbC
             .WithMany()
             .HasForeignKey(entity => entity.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<RefreshTokenSession>()
             .HasOne<UserDeviceSession>()
             .WithMany()
             .HasForeignKey(entity => entity.DeviceSessionId)
             .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<RefreshTokenSession>()
             .HasIndex(entity => entity.TokenHash)
             .IsUnique();
