@@ -54,6 +54,8 @@ builder.Services.AddScoped<IDeviceDetectorService, DeviceDetectorService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IRefreshService, RefreshService>();
 builder.Services.AddScoped<IMfaService, MfaService>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+
 builder.Services.Configure<SmtpOptions>(options =>
 {
     var configuredOptions = SmtpOptions.FromConfiguration(builder.Configuration);
