@@ -10,10 +10,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LogisticPlatform.API.Common.Security;
 
-internal sealed class RefreshTokenService(AppDbContext context) : IRefreshTokenService
+internal sealed class RefreshTokenService(AppDbContext context, TimeProvider timeProvider) : IRefreshTokenService
 {
     public async Task<string> CreateTokenAsync(Guid userId, Guid deviceSessionId, CancellationToken cancellationToken)
     {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var randomNumber = new byte[64];
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomNumber);
@@ -23,9 +24,9 @@ internal sealed class RefreshTokenService(AppDbContext context) : IRefreshTokenS
 
         var session = new RefreshTokenSession
         {
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = now,
             DeviceSessionId = deviceSessionId,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            ExpiresAt = now.AddDays(7),
             Id = Guid.NewGuid(),
             IsRevoked = false,
             TokenHash = tokenHash,
@@ -43,19 +44,56 @@ internal sealed class RefreshTokenService(AppDbContext context) : IRefreshTokenS
         if (string.IsNullOrWhiteSpace(token)) return null;
 
         var tokenHash = ComputeSha256Hash(token);
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var session = await context.RefreshTokenSessions
+            .AsNoTracking()
             .FirstOrDefaultAsync(t => t.TokenHash == tokenHash, cancellationToken);
 
-        if (session is null || session.IsRevoked || session.ExpiresAt <= DateTime.UtcNow)
+        if (session is null || session.IsRevoked || session.ExpiresAt <= now)
         {
             return null;
         }
 
-        session.IsRevoked = true;
-        session.UpdatedAt = DateTime.UtcNow;
+        if (context.Database.IsRelational())
+        {
+            var updatedRows = await context.RefreshTokenSessions
+                .Where(candidate =>
+                    candidate.Id == session.Id &&
+                    candidate.TokenHash == tokenHash &&
+                    !candidate.IsRevoked &&
+                    candidate.ExpiresAt > now)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(candidate => candidate.IsRevoked, true)
+                    .SetProperty(candidate => candidate.UpdatedAt, now),
+                    cancellationToken);
+
+            if (updatedRows != 1)
+            {
+                return null;
+            }
+
+            session.IsRevoked = true;
+            session.UpdatedAt = now;
+            return session;
+        }
+
+        var trackedSession = await context.RefreshTokenSessions
+            .FirstOrDefaultAsync(candidate =>
+                candidate.Id == session.Id &&
+                !candidate.IsRevoked &&
+                candidate.ExpiresAt > now,
+                cancellationToken);
+
+        if (trackedSession is null)
+        {
+            return null;
+        }
+
+        trackedSession.IsRevoked = true;
+        trackedSession.UpdatedAt = now;
 
         await context.SaveChangesAsync(cancellationToken);
-        return session;
+        return trackedSession;
     }
 
     private static string ComputeSha256Hash(string rawData)

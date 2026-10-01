@@ -18,6 +18,7 @@ internal sealed class LoginService(
     AppDbContext context,
     IDeviceDetectorService deviceDetectorService,
     IHttpContextAccessor httpContextAccessor,
+    IPasswordHashService passwordHashService,
     IMfaService mfaService,
     IRefreshTokenService refreshTokenService,
     ITokenService tokenService) : ILoginService
@@ -31,37 +32,22 @@ internal sealed class LoginService(
         var userAgent = httpContext?.Request?.Headers.UserAgent.ToString() ?? "UNKNOWN";
 
         var users = context.Users.Include(u => u.Role);
-        User? user;
-
-        if (context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
-        {
-            user = null;
-            await foreach (var candidate in users.AsAsyncEnumerable().WithCancellation(cancellationToken))
-            {
-                if (string.Equals(candidate.Email, request.Email, StringComparison.OrdinalIgnoreCase))
-                {
-                    user = candidate;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            user = await users.FirstOrDefaultAsync(
-                u => EF.Functions.ILike(u.Email, request.Email),
-                cancellationToken);
-        }
+        var normalizedEmail = request.Email.ToUpperInvariant();
+        var legacyNormalizedEmail = new string([.. request.Email.Select(char.ToLowerInvariant)]);
+        var user = await users.FirstOrDefaultAsync(
+            candidate => candidate.Email == normalizedEmail || candidate.Email == legacyNormalizedEmail,
+            cancellationToken);
 
         if (user is null)
         {
-            var ghostAudit = new LoginAudit(Guid.Empty, null, ipAddress, userAgent, "FAILED");
+            var ghostAudit = new LoginAudit(null, null, ipAddress, userAgent, "FAILED");
             context.LoginAudits.Add(ghostAudit);
             await context.SaveChangesAsync(cancellationToken);
 
             return ResultSchema<LoginResponseSchema>.Failure("Invalid credentials.");
         }
 
-        if (user.PasswordHash != request.Password)
+        if (!passwordHashService.VerifyPassword(user, request.Password))
         {
             var failedAudit = new LoginAudit(user.Id, null, ipAddress, userAgent, "FAILED");
             context.LoginAudits.Add(failedAudit);
@@ -79,16 +65,21 @@ internal sealed class LoginService(
             deviceSessionId = deviceSession.Id;
         }
 
-        var mfaConfig = await context.MfaConfigurations
-            .FirstOrDefaultAsync(m => m.UserId == user.Id, cancellationToken);
+        var mfaConfiguration = await context.MfaConfigurations
+            .FirstOrDefaultAsync(configuration =>
+                configuration.UserId == user.Id &&
+                configuration.IsEnabled &&
+                configuration.Provider == "email",
+                cancellationToken);
+        var isMfaRequired = mfaConfiguration is not null;
+        var auditStatus = isMfaRequired ? "MFA_PENDING" : "SUCCESS";
+        var successAudit = new LoginAudit(user.Id, deviceSessionId, ipAddress, userAgent, auditStatus);
+        context.LoginAudits.Add(successAudit);
 
-        if (mfaConfig is not null && mfaConfig.IsEnabled && mfaConfig.Provider == "email")
+        if (isMfaRequired)
         {
-            var mfaAudit = new LoginAudit(user.Id, deviceSessionId, ipAddress, userAgent, "MFA_PENDING");
-            context.LoginAudits.Add(mfaAudit);
+            await mfaService.SendEmailCodeAsync(user.Id, deviceSessionId, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
-
-            await mfaService.SendEmailCodeAsync(user.Id, cancellationToken);
 
             var mfaResponse = new LoginResponseSchema(
                 user.Id,
@@ -98,14 +89,11 @@ internal sealed class LoginService(
                 string.Empty,
                 string.Empty,
                 deviceSessionId ?? Guid.Empty,
-                true
-            );
+                true);
 
             return ResultSchema<LoginResponseSchema>.Success(mfaResponse);
         }
 
-        var successAudit = new LoginAudit(user.Id, deviceSessionId, ipAddress, userAgent, "SUCCESS");
-        context.LoginAudits.Add(successAudit);
         await context.SaveChangesAsync(cancellationToken);
 
         var accessToken = tokenService.GenerateToken(user);

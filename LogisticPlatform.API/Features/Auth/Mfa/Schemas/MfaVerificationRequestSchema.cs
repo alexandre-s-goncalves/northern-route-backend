@@ -4,5 +4,6 @@ namespace LogisticPlatform.API.Features.Auth.Mfa.Schemas;
 
 public sealed record MfaVerificationRequestSchema(
     string Code,
-    Guid UserId
+    Guid UserId,
+    Guid? DeviceSessionId
 );

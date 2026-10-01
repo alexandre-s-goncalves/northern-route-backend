@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LogisticPlatform.API.Common;
 using LogisticPlatform.API.Common.Data;
+using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Login.Schemas;
 using LogisticPlatform.API.Features.Auth.Mfa.Schemas;
@@ -20,17 +21,16 @@ public sealed class MfaVerifyModule : IModule
     {
         endpoints.MapPost("/api/auth/mfa/verify", async (
             MfaVerificationRequestSchema request,
+            HttpContext httpContext,
             AppDbContext context,
             IMfaService mfaService,
             IRefreshTokenService refreshTokenService,
             ITokenService tokenService,
             CancellationToken cancellationToken) =>
         {
-            var mfaResult = await mfaService.VerifyMfaAsync(request, cancellationToken);
-
-            if (!mfaResult.IsSuccess)
+            if (request.DeviceSessionId is null)
             {
-                return Results.BadRequest(mfaResult);
+                return Results.BadRequest("Device session is required to verify MFA.");
             }
 
             var user = await context.Users
@@ -43,12 +43,38 @@ public sealed class MfaVerifyModule : IModule
             }
 
             var deviceSession = await context.UserDeviceSessions
-                .FirstOrDefaultAsync(s => s.UserId == user.Id && s.IsActive, cancellationToken);
+                .FirstOrDefaultAsync(
+                    session => session.Id == request.DeviceSessionId &&
+                               session.UserId == user.Id &&
+                               session.IsActive,
+                    cancellationToken);
 
-            var deviceSessionId = deviceSession?.Id ?? Guid.NewGuid();
+            if (deviceSession is null)
+            {
+                return Results.BadRequest("Device session associated with MFA challenge is invalid.");
+            }
+
+            await using var transaction = context.Database.IsRelational()
+                ? await context.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+
+            var mfaResult = await mfaService.VerifyMfaAsync(request, cancellationToken);
+            if (!mfaResult.IsSuccess)
+            {
+                return Results.BadRequest(mfaResult);
+            }
+
+            var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString() ?? "UNKNOWN";
+            var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+            context.LoginAudits.Add(new LoginAudit(user.Id, deviceSession.Id, ipAddress, userAgent, "SUCCESS"));
 
             var accessToken = tokenService.GenerateToken(user);
-            var refreshToken = await refreshTokenService.CreateTokenAsync(user.Id, deviceSessionId, cancellationToken);
+            var refreshToken = await refreshTokenService.CreateTokenAsync(user.Id, deviceSession.Id, cancellationToken);
+
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
 
             var response = new LoginResponseSchema(
                 user.Id,
@@ -57,7 +83,7 @@ public sealed class MfaVerifyModule : IModule
                 user.Role?.Name ?? "USER",
                 accessToken,
                 refreshToken,
-                deviceSessionId,
+                deviceSession.Id,
                 false
             );
 

@@ -11,6 +11,7 @@ using LogisticPlatform.API.Features.Auth.Login.Services;
 using LogisticPlatform.API.Features.Auth.Mfa.Schemas;
 using LogisticPlatform.API.Features.Auth.Mfa.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -22,7 +23,8 @@ public sealed class LoginServiceTests : IDisposable
 {
     private readonly IDeviceDetectorService _deviceDetectorService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly FakeMfaService _mfaService;
+    private readonly IMfaService _mfaService;
+    private readonly IPasswordHashService _passwordHashService;
     private readonly AppDbContext _refreshTokenContext;
     private readonly IRefreshTokenService _refreshTokenService;
     private readonly ITokenService _tokenService;
@@ -31,6 +33,7 @@ public sealed class LoginServiceTests : IDisposable
     {
         _deviceDetectorService = new DeviceDetectorService();
         _mfaService = new FakeMfaService();
+        _passwordHashService = new PasswordHashService(new PasswordHasher<User>());
 
         var inMemorySettings = new Dictionary<string, string?>
         {
@@ -43,7 +46,7 @@ public sealed class LoginServiceTests : IDisposable
 
         _tokenService = new TokenService(configuration);
         _refreshTokenContext = new AppDbContext(CreateNewInMemoryDatabaseOptions());
-        _refreshTokenService = new RefreshTokenService(_refreshTokenContext);
+        _refreshTokenService = new RefreshTokenService(_refreshTokenContext, TimeProvider.System);
 
         var defaultHttpContext = new DefaultHttpContext();
         defaultHttpContext.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("127.0.0.1");
@@ -80,7 +83,7 @@ public sealed class LoginServiceTests : IDisposable
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context);
         var request = new LoginRequestSchema("driver@test.com", "WrongPassword123");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -104,7 +107,7 @@ public sealed class LoginServiceTests : IDisposable
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context);
         var request = new LoginRequestSchema("admin@test.com", "SecurePassword789");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -117,47 +120,8 @@ public sealed class LoginServiceTests : IDisposable
         Assert.Equal("ADMIN", result.Data.Role);
         Assert.False(string.IsNullOrWhiteSpace(result.Data.Token));
         Assert.False(string.IsNullOrWhiteSpace(result.Data.RefreshToken));
-    }
-
-    [Fact(DisplayName = "Auth - Login Service: Should require email MFA when enabled for the user")]
-    public async Task ExecuteAsync_ShouldRequireMfa_WhenEmailMfaIsEnabled()
-    {
-        using var context = new AppDbContext(CreateNewInMemoryDatabaseOptions());
-        var role = new Role("ADMIN");
-        var user = new User("MFA Operator", "mfa-login@test.com", "SecurePassword789", role.Id);
-        context.Roles.Add(role);
-        context.Users.Add(user);
-        context.MfaConfigurations.Add(new MfaConfiguration
-        {
-            Id = Guid.NewGuid(),
-            IsEnabled = true,
-            Provider = "email",
-            SecretKeyHash = "existing-hash",
-            UserId = user.Id
-        });
-        await context.SaveChangesAsync();
-
-        var loginService = new LoginService(
-            context,
-            _deviceDetectorService,
-            _httpContextAccessor,
-            _mfaService,
-            _refreshTokenService,
-            _tokenService);
-
-        var result = await loginService.ExecuteAsync(
-            new LoginRequestSchema(user.Email, "SecurePassword789"),
-            CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Data);
-        Assert.True(result.Data.IsMfaRequired);
-        Assert.Equal(string.Empty, result.Data.Token);
-        Assert.Equal(string.Empty, result.Data.RefreshToken);
-        Assert.Equal(user.Id, Assert.Single(_mfaService.SentUserIds));
-
-        var audit = await context.LoginAudits.SingleAsync();
-        Assert.Equal("MFA_PENDING", audit.Status);
+        Assert.False(result.Data.IsMfaRequired);
+        Assert.NotEqual("SecurePassword789", testUser.PasswordHash);
     }
 
     [Fact(DisplayName = "Auth - Login Service: Should return success with empty refresh token when device context is unavailable")]
@@ -173,7 +137,7 @@ public sealed class LoginServiceTests : IDisposable
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _deviceDetectorService, new HttpContextAccessor { HttpContext = null }, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context, new HttpContextAccessor { HttpContext = null });
         var request = new LoginRequestSchema("admin-no-context@test.com", "SecurePassword789");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -191,7 +155,7 @@ public sealed class LoginServiceTests : IDisposable
         var options = CreateNewInMemoryDatabaseOptions();
         using var context = new AppDbContext(options);
 
-        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context);
         var request = new LoginRequestSchema("unknown@logistics.com", "AnyPassword");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -207,7 +171,7 @@ public sealed class LoginServiceTests : IDisposable
         var options = CreateNewInMemoryDatabaseOptions();
         using var context = new AppDbContext(options);
 
-        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context);
         var request = new LoginRequestSchema("non-existent@northernroute.com", "Password123");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -231,7 +195,7 @@ public sealed class LoginServiceTests : IDisposable
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context);
         var request = new LoginRequestSchema("driver-branch@northernroute.com", "WrongPassword123");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -255,7 +219,7 @@ public sealed class LoginServiceTests : IDisposable
         context.Users.Add(testUser);
         await context.SaveChangesAsync();
 
-        var loginService = new LoginService(context, _deviceDetectorService, _httpContextAccessor, _mfaService, _refreshTokenService, _tokenService);
+        var loginService = CreateLoginService(context);
         var request = new LoginRequestSchema("audit-check@test.com", "SecurePassword789");
 
         var result = await loginService.ExecuteAsync(request, CancellationToken.None);
@@ -272,17 +236,81 @@ public sealed class LoginServiceTests : IDisposable
         Assert.Equal("Xunit-Integration-Test-Environment-Agent", savedAudit.UserAgent);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_ShouldRequireMfa_AndWithholdTokens_WhenMfaIsEnabled()
+    {
+        using var context = new AppDbContext(CreateNewInMemoryDatabaseOptions());
+        var role = new Role("ADMIN");
+        var user = new User("MFA Operator", "mfa-login@test.com", "SecurePassword789", role.Id);
+        context.Roles.Add(role);
+        context.Users.Add(user);
+        context.MfaConfigurations.Add(new MfaConfiguration
+        {
+            Id = Guid.NewGuid(),
+            IsEnabled = true,
+            Provider = "email",
+            SecretKeyHash = "existing-hash",
+            UserId = user.Id
+        });
+        await context.SaveChangesAsync();
+
+        var result = await CreateLoginService(context).ExecuteAsync(
+            new LoginRequestSchema(user.Email, "SecurePassword789"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Data);
+        Assert.True(result.Data.IsMfaRequired);
+        Assert.Equal(string.Empty, result.Data.Token);
+        Assert.Equal(string.Empty, result.Data.RefreshToken);
+        Assert.NotEqual(Guid.Empty, result.Data.DeviceSessionId);
+        Assert.Equal((user.Id, (Guid?)result.Data.DeviceSessionId), Assert.Single(((FakeMfaService)_mfaService).SentChallenges));
+
+        var audit = await context.LoginAudits.SingleAsync();
+        Assert.Equal("MFA_PENDING", audit.Status);
+        Assert.Equal(result.Data.DeviceSessionId, audit.DeviceSessionId);
+        Assert.Empty(await context.RefreshTokenSessions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldSaveNullUserIdAudit_WhenEmailDoesNotExist()
+    {
+        using var context = new AppDbContext(CreateNewInMemoryDatabaseOptions());
+
+        var result = await CreateLoginService(context).ExecuteAsync(
+            new LoginRequestSchema("unknown@example.com", "WrongPassword"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        var audit = await context.LoginAudits.SingleAsync();
+        Assert.Null(audit.UserId);
+        Assert.Equal("FAILED", audit.Status);
+    }
+
+    private LoginService CreateLoginService(AppDbContext context, IHttpContextAccessor? accessor = null)
+    {
+        return new LoginService(
+            context,
+            _deviceDetectorService,
+            accessor ?? _httpContextAccessor,
+            _passwordHashService,
+            _mfaService,
+            _refreshTokenService,
+            _tokenService);
+    }
+
 }
 
 internal sealed class FakeMfaService : IMfaService
 {
-    public List<Guid> SentUserIds { get; } = [];
+    public List<(Guid UserId, Guid? DeviceSessionId)> SentChallenges { get; } = [];
 
     public Task<ResultSchema<MfaEmailResponseSchema>> SendEmailCodeAsync(
         Guid userId,
+        Guid? deviceSessionId,
         CancellationToken cancellationToken)
     {
-        SentUserIds.Add(userId);
+        SentChallenges.Add((userId, deviceSessionId));
         return Task.FromResult(ResultSchema<MfaEmailResponseSchema>.Success(
             new MfaEmailResponseSchema("ma***@test.com", true, userId)));
     }

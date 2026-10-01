@@ -10,12 +10,22 @@ using LogisticPlatform.API.Common.Domain;
 using LogisticPlatform.API.Common.Security;
 using LogisticPlatform.API.Features.Auth.Mfa.Schemas;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace LogisticPlatform.API.Features.Auth.Mfa.Services;
 
-internal sealed class MfaService(AppDbContext context, IEmailService emailService) : IMfaService
+internal sealed class MfaService(
+    AppDbContext context,
+    IEmailService emailService,
+    IConfiguration configuration,
+    TimeProvider timeProvider) : IMfaService
 {
-    public async Task<ResultSchema<MfaEmailResponseSchema>> SendEmailCodeAsync(Guid userId, CancellationToken cancellationToken)
+    private const string _emailProvider = "email";
+
+    public async Task<ResultSchema<MfaEmailResponseSchema>> SendEmailCodeAsync(
+        Guid userId,
+        Guid? deviceSessionId,
+        CancellationToken cancellationToken)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
         if (user is null)
@@ -23,10 +33,8 @@ internal sealed class MfaService(AppDbContext context, IEmailService emailServic
             return ResultSchema<MfaEmailResponseSchema>.Failure("User profile reference not found.");
         }
 
-        var codeBytes = new byte[4];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(codeBytes);
-        var securityCode = (BitConverter.ToUInt32(codeBytes, 0) % 900000 + 100000)
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var securityCode = RandomNumberGenerator.GetInt32(100000, 1_000_000)
             .ToString(CultureInfo.InvariantCulture);
 
         var mfaConfig = await context.MfaConfigurations
@@ -36,12 +44,14 @@ internal sealed class MfaService(AppDbContext context, IEmailService emailServic
         {
             mfaConfig = new MfaConfiguration
             {
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = now,
                 Id = Guid.NewGuid(),
                 IsEnabled = true,
-                Provider = "email",
-                SecretKeyHash = ComputeSha256Hash(securityCode),
-                UpdatedAt = DateTime.UtcNow,
+                Provider = _emailProvider,
+                SecretKeyHash = ComputeCodeHash(securityCode),
+                CodeExpiresAt = now.AddMinutes(15),
+                ChallengeDeviceSessionId = deviceSessionId,
+                UpdatedAt = now,
                 UserId = userId
             };
             context.MfaConfigurations.Add(mfaConfig);
@@ -49,9 +59,11 @@ internal sealed class MfaService(AppDbContext context, IEmailService emailServic
         else
         {
             mfaConfig.IsEnabled = true;
-            mfaConfig.Provider = "email";
-            mfaConfig.SecretKeyHash = ComputeSha256Hash(securityCode);
-            mfaConfig.UpdatedAt = DateTime.UtcNow;
+            mfaConfig.Provider = _emailProvider;
+            mfaConfig.SecretKeyHash = ComputeCodeHash(securityCode);
+            mfaConfig.CodeExpiresAt = now.AddMinutes(15);
+            mfaConfig.ChallengeDeviceSessionId = deviceSessionId;
+            mfaConfig.UpdatedAt = now;
         }
 
         await emailService.SendMfaCodeEmailAsync(user.Email, user.Name, securityCode);
@@ -73,7 +85,7 @@ internal sealed class MfaService(AppDbContext context, IEmailService emailServic
         var mfaConfig = await context.MfaConfigurations
             .FirstOrDefaultAsync(m => m.UserId == request.UserId, cancellationToken);
 
-        if (mfaConfig is null || !mfaConfig.IsEnabled || mfaConfig.Provider != "email")
+        if (mfaConfig is null || !mfaConfig.IsEnabled || mfaConfig.Provider != _emailProvider)
         {
             return ResultSchema<bool>.Failure("MFA via email security policy is not enabled for this profile.");
         }
@@ -83,37 +95,81 @@ internal sealed class MfaService(AppDbContext context, IEmailService emailServic
             return ResultSchema<bool>.Failure("Verification digits code parameter cannot be empty.");
         }
 
-        var lastUpdatedAt = mfaConfig.UpdatedAt ?? mfaConfig.CreatedAt;
-        var tokenLifetimeWindow = lastUpdatedAt.AddMinutes(15);
-        if (DateTime.UtcNow > tokenLifetimeWindow)
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        if (mfaConfig.CodeExpiresAt is null || now >= mfaConfig.CodeExpiresAt.Value)
         {
-            mfaConfig.IsDeleted = true;
-            mfaConfig.DeletedAt = DateTime.UtcNow;
+            ClearChallenge(mfaConfig);
             await context.SaveChangesAsync(cancellationToken);
             return ResultSchema<bool>.Failure("Security token verification code has expired.");
         }
 
-        var hashedInputCode = ComputeSha256Hash(request.Code);
-        if (mfaConfig.SecretKeyHash != hashedInputCode)
+        if (mfaConfig.ChallengeDeviceSessionId != request.DeviceSessionId)
         {
             return ResultSchema<bool>.Failure("Security token verification code mismatch.");
         }
 
-        mfaConfig.IsDeleted = true;
-        mfaConfig.DeletedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync(cancellationToken);
+        var hashedInputCode = ComputeCodeHash(request.Code);
+        if (!HashesEqual(mfaConfig.SecretKeyHash, hashedInputCode))
+        {
+            return ResultSchema<bool>.Failure("Security token verification code mismatch.");
+        }
+
+        if (context.Database.IsRelational())
+        {
+            var affectedRows = await context.MfaConfigurations
+                .Where(configuration =>
+                    configuration.Id == mfaConfig.Id &&
+                    configuration.IsEnabled &&
+                    configuration.Provider == _emailProvider &&
+                    configuration.SecretKeyHash == mfaConfig.SecretKeyHash &&
+                    configuration.CodeExpiresAt > now &&
+                    configuration.ChallengeDeviceSessionId == request.DeviceSessionId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(configuration => configuration.SecretKeyHash, string.Empty)
+                    .SetProperty(configuration => configuration.CodeExpiresAt, (DateTime?)null)
+                    .SetProperty(configuration => configuration.ChallengeDeviceSessionId, (Guid?)null),
+                    cancellationToken);
+
+            if (affectedRows != 1)
+            {
+                return ResultSchema<bool>.Failure("Security token verification code mismatch.");
+            }
+
+            ClearChallenge(mfaConfig);
+            context.Entry(mfaConfig).State = EntityState.Unchanged;
+        }
+        else
+        {
+            ClearChallenge(mfaConfig);
+            await context.SaveChangesAsync(cancellationToken);
+        }
 
         return ResultSchema<bool>.Success(true);
     }
 
-    private static string ComputeSha256Hash(string rawData)
+    private static void ClearChallenge(MfaConfiguration configuration)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));
-        var builder = new StringBuilder();
-        foreach (var b in bytes)
+        configuration.SecretKeyHash = string.Empty;
+        configuration.CodeExpiresAt = null;
+        configuration.ChallengeDeviceSessionId = null;
+    }
+
+    private string ComputeCodeHash(string rawCode)
+    {
+        var pepper = configuration["MFA_CODE_PEPPER"] ?? configuration["JWT_SECRET_KEY"];
+        if (string.IsNullOrWhiteSpace(pepper))
         {
-            builder.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+            throw new InvalidOperationException("MFA code pepper is not configured.");
         }
-        return builder.ToString();
+
+        var hash = HMACSHA256.HashData(Encoding.UTF8.GetBytes(pepper), Encoding.UTF8.GetBytes(rawCode));
+        return Convert.ToHexString(hash);
+    }
+
+    private static bool HashesEqual(string expectedHash, string actualHash)
+    {
+        return CryptographicOperations.FixedTimeEquals(
+            Convert.FromHexString(expectedHash),
+            Convert.FromHexString(actualHash));
     }
 }

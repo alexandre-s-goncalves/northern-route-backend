@@ -8,6 +8,9 @@ namespace LogisticPlatform.API.Features.Auth.Mfa.Services;
 
 public interface IMfaService
 {
-    Task<ResultSchema<MfaEmailResponseSchema>> SendEmailCodeAsync(Guid userId, CancellationToken cancellationToken);
+    Task<ResultSchema<MfaEmailResponseSchema>> SendEmailCodeAsync(
+        Guid userId,
+        Guid? deviceSessionId,
+        CancellationToken cancellationToken);
     Task<ResultSchema<bool>> VerifyMfaAsync(MfaVerificationRequestSchema request, CancellationToken cancellationToken);
 }
